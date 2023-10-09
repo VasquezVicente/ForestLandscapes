@@ -2,7 +2,7 @@
 *
 # Except directories
 !*/
-
+*/*
 # Exceptions for specific files if needed
 !*.md
 
