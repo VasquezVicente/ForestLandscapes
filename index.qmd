@@ -1,3 +1,14 @@
+---
+title: ForestLanscapes
+author: Vicente Vasquez 
+- name: Vicente Vasquez
+  affiliation: Smithsonian tropical research institute
+  email: vasquezv@si.edu
+output:
+  quarto::html_document:
+    theme: cerulean
+    highlight_style: github
+---
 # ForestLanscapes
 ## NAS server organization project, this page is meant to document the file organization as well as the scripts for data processing
 
