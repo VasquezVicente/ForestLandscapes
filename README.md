@@ -2,22 +2,25 @@
 ## NAS server organization project, this page is meant to document the file organization as well as the scripts for data processing
 
 ### Permisions
-Users to obtain read/write access to both directories:
-STRI-Gamboa-ForestLandscapesFull has read/write access to both directories
-garciamil@si.edu
-solanom@si.edu
-hernandezma3@si.edu
-vasquezv@si.edu
-gomezlf@si.edu
 
-Users to obtain read access to LandscapeRaw, and read/write access to LandscapeProducts:
-STRI-Gamboa-ForestLandscapesUsers has read access to the Raw directory and read/write access to the products directory.  
-mullerh@si.edu
-williamsoncg@si.edu
-cushmank@si.edu
-mitchellme@si.edu
-ramosp@si.edu
-cannonpg@si.edu
+STRI-Gamboa-ForestLandscapesFull has read/write access to both directories
+Users to obtain read/write access to both directories: 
+
+- garciamil@si.edu
+- solanom@si.edu
+- hernandezma3@si.edu
+- vasquezv@si.edu
+- gomezlf@si.edu
+
+STRI-Gamboa-ForestLandscapesUsers has read access to the Raw directory and read/write access to the products directory.
+Users to obtain read access to LandscapeRaw, and read/write access to LandscapeProducts: 
+
+- mullerh@si.edu
+- williamsoncg@si.edu
+- cushmank@si.edu
+- mitchellme@si.edu
+- ramosp@si.edu
+- cannonpg@si.edu
 
 ### Conventions
 General conventions for ./LandscapeRaw/drone/year
