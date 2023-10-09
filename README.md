@@ -1,3 +1,7 @@
+# ForestLanscapes
+## NAS server organization project, this page is meant to document the file organization as well as the scripts for data processing
+
+### Permisions
 Users to obtain read/write access to both directories:
 STRI-Gamboa-ForestLandscapesFull has read/write access to both directories
 garciamil@si.edu
@@ -15,7 +19,7 @@ mitchellme@si.edu
 ramosp@si.edu
 cannonpg@si.edu
 
-
+### Conventions
 General conventions for ./LandscapeRaw/drone/year
 The folder contains all flight missions for the Forest carbon lab. subfolder with the year are mantained for easier classification.
 Each flight mission within each year follows the following convention SITE/plot/year/month/day/DRONE/mission.
@@ -33,8 +37,8 @@ Inside each of mission folder there is 2 subdirectories that are created automat
 			2. 2023_03_27
 	- The folder Images_extra contains all the pictures non-related to the flight actual mission for example panoramics or test images.
 
-ForestLandscapes file structure:
 
+### ForestLandscapes file structure
 .
 └── LandscapeRaw/
     ├── Drone/
