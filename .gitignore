@@ -1,7 +1,8 @@
 # Ignore all files
-*
 # Except directories
-*/LandscapeScripts*
+
+LandscapeProducts/
+LandscapeRaw/
 # Exceptions for specific files if needed
 !*.md
 
