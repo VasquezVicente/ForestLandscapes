@@ -27,7 +27,7 @@ df = df.drop([0, 1], axis=1)
 #filter df by column 4 == .git
 df = df[df[4] != '.git']
 #change the column names , column name to server 
-new_columns = ['server', 'partition', 'type','source','year', 'mission', 'product', 'file', 'column9', 'column10', 'column11', 'column12']
+new_columns = ['server', 'partition', 'type','source','year', 'mission', 'product', 'file', 'column9', 'column10', 'column11', 'column12','column13']
 df.columns = new_columns
 path=r'\\stri-sm01\ForestLandscapes\filepaths.csv'
 df.to_csv(path, index=False)
