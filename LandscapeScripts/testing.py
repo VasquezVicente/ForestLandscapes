@@ -2,8 +2,10 @@ import os
 import pandas as pd
 import Metashape
 import re
+import time
 
 def process_drone_images(images_dir):
+      start_time = time.time()
       doc = Metashape.Document()
       project_name=os.path.join('Project',re.split(r"[\\/]", images_dir)[7].replace("P4P", "medium")+'.psx')
       dest= images_dir.replace("LandscapeRaw","LandscapeProducts").replace("Images",os.path.join('Project',re.split(r"[\\/]", images_dir)[7].replace("P4P", "medium")+'.psx'))
@@ -59,6 +61,10 @@ def process_drone_images(images_dir):
 
       print('Processing finished')
 
+      end_time = time.time()
+      elapsed_time = end_time - start_time
+      print(f'Total processing time: {elapsed_time} seconds')
+
 
 server= r'\\stri-sm01\ForestLandscapes'
 #read paths
@@ -83,37 +89,7 @@ for mission in mission_names:
         os.makedirs(os.path.join(server,"LandscapeProducts","Drone",year_to_check,mission,'Project'))
 
 #lets do orthomosaics first and see
-for mission in mission_names[21:30]:
-    if not os.listdir(os.path.join(server,"LandscapeProducts","Drone",year_to_check,mission,'Orthophoto')):
-        print("Directory Orthophoto is empty")
-        boolean_ortho= False
-    else:
-        print("Directory Orthophoto is not empty")
-        boolean_ortho= True
-    if not os.listdir(os.path.join(server,"LandscapeProducts","Drone",year_to_check,mission,'DSM')):
-        print("Directory DSM is empty")
-        boolean_dsm= False
-    else: 
-        print("Directory DSM is not empty")
-        boolean_dsm= True
-    if not os.listdir(os.path.join(server,"LandscapeProducts","Drone",year_to_check,mission,'Cloudpoint')):
-        print("Directory Cloudpoint is empty")
-        boolean_cloud= False
-    else:
-        print("Directory Cloudpoint is not empty")
-        boolean_cloud= True
-    if not os.listdir(os.path.join(server,"LandscapeProducts","Drone",year_to_check,mission,'Project')):
-        print("Directory Project is empty")
-        boolean_project= False
-    if boolean_cloud == False and boolean_dsm == False and boolean_ortho == False and boolean_project == False:
-        print('Missions hasnt been processed', mission)
-        #process the mission
-        process_drone_images(os.path.join(server,"LandscapeRaw","Drone",year_to_check,mission,"Images"))
 
 
-for mission in mission_names[23:30]:
-     process_drone_images(os.path.join(server,"LandscapeRaw","Drone",year_to_check,mission,"Images"))
-
-
-for mission in mission_names[31:50]:
-     process_drone_images(os.path.join(server,"LandscapeRaw","Drone",year_to_check,mission,"Images"))
+process_drone_images(os.path.join(server,"LandscapeRaw","Drone",year_to_check,mission_names[2],"Images")) #started at 7:32  9:38
+process_drone_images(os.path.join(server,"LandscapeRaw","Drone",year_to_check,mission_names[11],"Images")) #started 9:41
