@@ -1,4 +1,5 @@
 # ForestLanscapes
+https://doi.org/10.5281/zenodo.10328609
 ## The repository encompasess all the code necessary to replicate the products in the following publications: 
     - "Time series of the Barro Colorado Island 50ha plot photogrametry orthomosaics and digital surface model captured with DJI Phantom 4 Pro drone: Globally aligned and vertically corrected."
     - "Barro Colorado Island photogrametry products: from 2018 to 2023 collected with the eBee drone."
