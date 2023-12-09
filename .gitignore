@@ -3,6 +3,14 @@
 
 LandscapeProducts/
 LandscapeRaw/
+UAVSHARE/
+
+LandscapeScripts/drone_process.bat
+LandscapeScripts/ensure_conventions.py
+LandscapeScripts/get_file_paths.py
+LandscapeScripts/get_file_paths.bat
+LandscapeScripts/convention_checker1.bat
 # Exceptions for specific files if needed
 !*.md
 
+#ignore landscapescript/drone_process.bat

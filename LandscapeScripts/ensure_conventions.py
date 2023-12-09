@@ -1,137 +1,190 @@
 import os
 import pandas as pd
-server_dir= r'\\stri-sm01\ForestLandscapes'
 
-filepaths = pd.read_csv(os.path.join(server_dir, "filepaths.csv"))
-def find_files(filepaths,type="LandscapeRaw", source="Drone",year="2023"):
-    filepaths_1 = filepaths[(filepaths["type"] == type) & (filepaths["source"] == source) & (filepaths["year"] == year)]
-    copy_rename= filepaths_1.copy()
-    unique_missions = filepaths_1["mission"].unique()
-    # Enumerate through the unique missions
-    for i, mission in enumerate(unique_missions, start=1):
-        print(f"{i}. {mission}")
-    return filepaths_1, copy_rename
+while True:
+    year_to_check = input("Enter year to check (type 'exit' to quit): ")
 
+    if year_to_check.lower() == 'exit':
+        print("Exiting the program...")
+        break
 
-orig, copy=find_files(filepaths,type="LandscapeProducts", source="Drone",year="2023")
+    server_dir = r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone"
+    server_dir=os.path.join(server_dir, year_to_check)
+    missions= os.listdir(server_dir)
 
-# correct names of subdirs inside the product folder
-copy.loc[copy["product"] == "DEM", "product"] = "DSM"
-copy.loc[copy["product"] == "projects", "product"] = "Project"
-copy.loc[copy["product"] == "model", "product"] = "Model"
+    #check if missions in raw folder are in the product folder
+    not_allright_flag_raw_product = False
+    server_dir_product = r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone"
+    server_dir_product=os.path.join(server_dir_product, year_to_check)
+    missions_product= os.listdir(server_dir_product)
+    for mission in missions:
+        if mission not in missions_product:
+            print(f"{mission} is not in product folder")
+            if not os.path.exists(os.path.join(server_dir_product,mission)):
+                os.makedirs(os.path.join(server_dir_product,mission))
+            not_allright_flag_raw_product = True
 
-all_orig=[]
-for i in range(len(orig)):
-    new=os.path.join("\\",orig.iloc[i,0], orig.iloc[i,1], orig.iloc[i,2], orig.iloc[i,3], orig.iloc[i,4], orig.iloc[i,5], orig.iloc[i,6]).replace("\\","//")
-    all_orig.append(new)
-
-all_copy=[]
-for i in range(len(copy)):
-    new=os.path.join("\\",copy.iloc[i,0], copy.iloc[i,1], copy.iloc[i,2], copy.iloc[i,3], copy.iloc[i,4], copy.iloc[i,5], copy.iloc[i,6]).replace("\\","//")
-    all_copy.append(new)
-
-for i in range(len(all_orig)):
-    if all_orig[i]!=all_copy[i]:
-        print("not equal")
-        os.rename(all_orig[i], all_copy[i])
+    #print the flag
+    if not_allright_flag_raw_product:
+        print("Some missions are not in product folder.")
     else:
-        print("equal")
+        print("All missions in the raw folder are in product folder.")
 
-##get the files paths again
-maindir= r'\\stri-sm01\ForestLandscapes'
-def get_all_files(directory):
-    all_files = []
-    for foldername, subfolders, filenames in os.walk(directory):
-        for filename in filenames:
-            file_path = os.path.join(foldername, filename)
-            all_files.append(file_path)
-    return all_files
-all_files = get_all_files(maindir)
-table=[]
-for file in all_files:
-    file_split = file.split('\\')
-    print(file_split)
-    table.append(file_split)
-df = pd.DataFrame(table)
-df = df.drop([0, 1], axis=1)
-df = df[df[4] != '.git']
-new_columns = ['server', 'partition', 'type','source','year', 'mission', 'product', 'file', 'column9', 'column10', 'column11', 'column12']
-df.columns = new_columns
-path=r'\\stri-sm01\ForestLandscapes\filepaths.csv'
-df.to_csv(path, index=False)
+    #check file structure of raw missions
+    not_allright_flag_raw_structure = False
+    for mission in missions:
+        subdir = os.listdir(os.path.join(server_dir, mission))
+        if not (subdir == ['Images', 'Images_extra'] or subdir == ['Images', 'Images_extra', 'Videos']):
+            print(subdir)
+            print(f"{mission} raw structure is not alright")
+            not_allright_flag_raw_structure = True
 
-
-# Correct file names inside the files subdir
-
-filepaths = pd.read_csv(os.path.join(server_dir, "filepaths.csv"))
-orig, copy=find_files(filepaths,type="LandscapeProducts", source="Drone",year="2023")
-
-copy[copy["product"]=="Cloudpoint"]
-mask = (copy["product"] == "Cloudpoint") & copy["file"].str.contains("medium")
-copy.loc[mask, "file"] = copy.loc[mask, "file"].str.replace("medium", "cloud")
-
-copy[copy["product"]=="Orthophoto"]
-mask = (copy["product"] == "Orthophoto") & copy["file"].str.contains("medium")
-copy.loc[mask, "file"] = copy.loc[mask, "file"].str.replace("medium", "orthomosaic")
-
-copy[copy["product"]=="DSM"]
-mask = (copy["product"] == "DSM") & copy["file"].str.contains("medium")
-copy.loc[mask, "file"] = copy.loc[mask, "file"].str.replace("medium", "dsm")
-
-all_orig=[]
-for i in range(len(orig)):
-    new=os.path.join("\\",orig.iloc[i,0], orig.iloc[i,1], orig.iloc[i,2], orig.iloc[i,3], orig.iloc[i,4], orig.iloc[i,5], orig.iloc[i,6],orig.iloc[i,7]).replace("\\","//")
-    all_orig.append(new)
-
-all_copy=[]
-for i in range(len(copy)):
-    new=os.path.join("\\",copy.iloc[i,0], copy.iloc[i,1], copy.iloc[i,2], copy.iloc[i,3], copy.iloc[i,4], copy.iloc[i,5], copy.iloc[i,6],copy.iloc[i,7]).replace("\\","//")
-    all_copy.append(new)
-
-for i in range(len(all_orig)):
-    if all_orig[i]!=all_copy[i]:
-        print("not equal")
-        os.rename(all_orig[i], all_copy[i])
+    # Check flag and return message
+    if not_allright_flag_raw_structure:
+        print("Some missions do not have a correct raw structure")
     else:
-        print("equal")
+        print("All missions raw structure is correct.")
 
+    #check Images folder for empty missions or missions with no images
+    not_allright_flag_raw_empty = False
+    for mission in missions:
+        if len(os.listdir(os.path.join(server_dir, mission, 'Images'))) == 0:
+            print(f"{mission} has no images")
+            not_allright_flag_raw_empty = True
 
-
-#ensure raw mission folders are named correctly
-filepaths = pd.read_csv(os.path.join(server_dir, "filepaths.csv"))
-orig, copy=find_files(filepaths,type="LandscapeRaw", source="Drone",year="2023")
-
-def rename_mission(row):
-    if row['mission'].startswith(row['year']):
-        parts = row['mission'].split("_")
-        year = parts[0]
-        month = parts[1]
-        day = parts[2]
-        site = parts[3]
-        plot = parts[4]
-        drone = parts[5]
-        newname = f"{site}_{plot}_{year}_{month}_{day}_{drone}"
-        return newname
+    if not_allright_flag_raw_empty:
+        print("Some missions have no images.")
     else:
-        return row['mission']
-
-copy['mission'] = copy.apply(rename_mission, axis=1)
-
-all_orig=[]
-for i in range(len(orig)):
-    new=os.path.join("\\",orig.iloc[i,0], orig.iloc[i,1], orig.iloc[i,2], orig.iloc[i,3], orig.iloc[i,4], orig.iloc[i,5]).replace("\\","//")
-    all_orig.append(new)
-
-all_copy=[]
-for i in range(len(copy)):
-    new=os.path.join("\\",copy.iloc[i,0], copy.iloc[i,1], copy.iloc[i,2], copy.iloc[i,3], copy.iloc[i,4], copy.iloc[i,5]).replace("\\","//")
-    all_copy.append(new)
+        print("All missions have images.")
 
 
-for i in range(len(all_orig)):
-    if all_orig[i]!=all_copy[i]:
-        print("not equal")
-        os.rename(all_orig[i], all_copy[i])
+    #check landscapeproducts
+    server_dir= r'\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone'
+    server_dir=os.path.join(server_dir, year_to_check)
+    missions= os.listdir(server_dir)
+
+    #check file structure of raw missions
+    not_allright_flag_product_structure = False
+    for mission in missions:
+        subdir = os.listdir(os.path.join(server_dir, mission))
+        if not (subdir == ['Cloudpoint', 'DSM', 'Orthophoto', 'Project'] or subdir == ['Cloudpoint', 'DSM', 'Model', 'Orthophoto', 'Project']):
+            print(f"{mission} products structure is not alright")
+            not_allright_flag_product_structure= True
+            if not os.path.exists(os.path.join(server_dir, mission, 'Orthophoto')):
+                os.mkdir(os.path.join(server_dir, mission, 'Orthophoto'))
+            if not os.path.exists(os.path.join(server_dir, mission, 'Project')):
+                os.mkdir(os.path.join(server_dir, mission, 'Project'))
+            if not os.path.exists(os.path.join(server_dir, mission, 'DSM')):
+                os.mkdir(os.path.join(server_dir, mission, 'DSM'))
+            if not os.path.exists(os.path.join(server_dir, mission, 'Cloudpoint')):
+                os.mkdir(os.path.join(server_dir, mission, 'Cloudpoint'))
+
+    #print flag
+    if not_allright_flag_product_structure:
+        print("Some missions product structure are not alright.")
     else:
-        print("equal")
+        print("All missions product structure are alright.")
 
+    #check for orthomosaics
+    not_allright_flag_ortho= False
+    for mission in missions:
+        #orthoname= os.path.join('_'.join(mission.split('_')[0:5])+"_orthomosaic.tif")
+        if 'P4P' in mission:
+            orthoname= mission.replace('P4P','orthomosaic')+".tif"
+        elif 'EBEE' in mission:
+            orthoname= mission.replace('EBEE','orthomosaic')+".tif"
+        elif 'INSPIRE' in mission:
+            orthoname= mission.replace('INSPIRE','orthomosaic')+".tif"
+        elif 'SOLO' in mission:
+            orthoname= mission.replace('SOLO','orthomosaic')+".tif"
+        if not os.path.exists(os.path.join(server_dir, mission, 'Orthophoto', orthoname)):
+            print(f"{mission} has no orthomosaic")
+            not_allright_flag_ortho = True
+
+    #print flag
+    if not_allright_flag_ortho:
+        print("Some missions have no orthomosaic.")
+    else:
+        print("All missions have orthomosaics.")
+
+    #check for DSMs
+    not_allright_flag = False
+    for mission in missions:
+        if 'P4P' in mission:
+            dsmname= mission.replace('P4P','dsm')+".tif"
+        elif 'EBEE' in mission:
+            dsmname= mission.replace('EBEE','dsm')+".tif"
+        elif 'INSPIRE' in mission:
+            dsmname= mission.replace('INSPIRE','dsm')+".tif"
+        elif 'SOLO' in mission:
+            dsmname= mission.replace('SOLO','dsm')+".tif"
+        if not os.path.exists(os.path.join(server_dir, mission, 'DSM', dsmname)):
+            print(f"{mission} has no DSM")
+            not_allright_flag = True
+
+    #print flag
+    if not_allright_flag:
+        print("Some missions have no DSM.")
+    else:
+        print("All missions have DSMs.")
+
+    #check for point clouds
+    not_allright_flag_report = False
+    for mission in missions:
+        if 'P4P' in mission:
+            cloudname= mission.replace('P4P','cloud')+".las"
+        elif 'EBEE' in mission:
+            cloudname= mission.replace('EBEE','cloud')+".las"
+        elif 'INSPIRE' in mission:
+            cloudname= mission.replace('INSPIRE','cloud')+".las"
+        elif 'SOLO' in mission:
+            cloudname= mission.replace('SOLO','cloud')+".las"
+        if not os.path.exists(os.path.join(server_dir, mission, 'Cloudpoint', cloudname)):
+            print(f"{mission} has no point cloud")
+            not_allright_flag_report = True
+
+    #print flag
+    if not_allright_flag_report:
+        print("Some missions have no point cloud.")
+    else:
+        print("All missions have point clouds.")
+
+    #check for project report
+    not_allright_flag_report = False
+    for mission in missions:
+        if 'P4P' in mission:
+            reportname= mission.replace('P4P','report')+".pdf"
+        elif 'EBEE' in mission:
+            reportname= mission.replace('EBEE','report')+".pdf"
+        elif 'INSPIRE' in mission:
+            reportname= mission.replace('INSPIRE','report')+".pdf"
+        elif 'SOLO' in mission:
+            reportname= mission.replace('SOLO','report')+".pdf"
+        if not os.path.exists(os.path.join(server_dir, mission, 'Project', reportname)):
+            print(f"{mission} has no project report")
+            not_allright_flag_report = True
+            orig= os.path.join(server_dir, mission, 'Project', reportname.replace('_report.pdf', '_medium.pdf'))
+            if os.path.exists(orig):
+                os.rename(orig, os.path.join(server_dir, mission, 'Project', reportname))
+            else:
+                continue
+            
+
+    #print flag
+    if not_allright_flag_report:
+        print("Some missions have no project report.")
+    else:
+        print("All missions have project reports.")
+
+
+    #if all flags false then all checks passed
+    if not_allright_flag_raw_structure or not_allright_flag_raw_empty or not_allright_flag_product_structure or not_allright_flag_ortho or not_allright_flag or not_allright_flag_report:
+        print("The folder did not pass all checks.")
+    else:
+        print("The folder passed all checks.Celebrate!")
+
+
+    press = input("Press 'exit' to quit or press Enter to check another year")
+    if press.lower() == 'exit':
+        print("Exiting the program...")
+        break  # stops the loop
