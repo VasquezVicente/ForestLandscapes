@@ -15,9 +15,9 @@ from datetime import datetime
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from arosics import COREG, COREG_LOCAL
 
-#Code for combining dems and cropping them
-#list of auxiliary files neccesary
+#Main directory
 wd_path = r"/home/vasquezv/BCI_50ha"
+
 #subdirectories
 path_orthomosaic = os.path.join(wd_path, "Orthophoto")
 path_DSM = os.path.join(wd_path, "DSM")
@@ -29,6 +29,7 @@ path_global= os.path.join(wd_path, "Product_global")
 path_local= os.path.join(wd_path, "Product_local")
 path_local_mean= os.path.join(wd_path, "Product_local_mean")
 path_vertical= os.path.join(wd_path, "Product_vertical")
+
 #create the directories
 if not os.path.exists(path_output):
     os.makedirs(path_output)
@@ -49,12 +50,14 @@ if not os.path.exists(path_local_mean):
 if not os.path.exists(path_vertical):
     os.makedirs(path_vertical)
 
-#read the 50ha shape file
+#read the 50ha shape file and transform it to UTM 17N
 BCI_50ha_shapefile = os.path.join(path_aux, "BCI_Plot_50ha.shp")
 BCI_50ha = gpd.read_file(BCI_50ha_shapefile)
 BCI_50ha.to_crs(epsg=32617, inplace=True)
-BCI_50ha_buffer = box(BCI_50ha.bounds.minx-20, BCI_50ha.bounds.miny-20, BCI_50ha.bounds.maxx+20, BCI_50ha.bounds.maxy+20)
+BCI_50ha_buffer = box(BCI_50ha.bounds.minx-20, BCI_50ha.bounds.miny-20, BCI_50ha.bounds.maxx+20, BCI_50ha.bounds.maxy+20)  # Create a buffer around the plot
+
 #Create the lidar 2023 product for aligment
+#provided on the data publication
 #list tiles in lidar folder
 list_of_tiles=os.listdir(path_lidar)
 src_files_to_merge = []
@@ -68,6 +71,7 @@ out_meta.update({"driver": "GTiff", "height": mosaic.shape[1], "width": mosaic.s
 output_lidar_mosaic_50ha=os.path.join(path_aux, "BCI_50ha_lidar.tif")
 with rasterio.open(output_lidar_mosaic_50ha, 'w', **out_meta) as dest:
     dest.write(mosaic)
+
 #crop the lidar orthomosaic to the 50ha plot
 with rasterio.open(output_lidar_mosaic_50ha) as src:
     out_image, out_transform = rasterio.mask.mask(src, [BCI_50ha_buffer], crop=True)
@@ -76,6 +80,7 @@ with rasterio.open(output_lidar_mosaic_50ha) as src:
     output_lidar_mosaic_50ha_cropped = os.path.join(path_aux, "BCI_50ha_lidar_cropped.tif")
     with rasterio.open(output_lidar_mosaic_50ha_cropped, "w", **out_meta) as dest:
         dest.write(out_image)
+
 #combine DEM and DTM
 DTM=os.path.join(path_aux, "DTM_lidar_airborne.tif")
 DEM=os.path.join(path_aux, "DEM_lidar_airborne_nonground.tif")
@@ -103,6 +108,7 @@ reproject(
     dst_transform=ortho_meta_lidar['transform'],
     dst_crs=ortho_meta_lidar['crs'],
     resampling=Resampling.nearest)
+
 #repeat previous steps with DEM
 with rasterio.open(DEM) as src:
         out_image, out_transform = rasterio.mask.mask(src, [BCI_50ha_buffer], crop=True)
@@ -122,16 +128,18 @@ reproject(
     dst_transform=ortho_meta_lidar['transform'],
     dst_crs=ortho_meta_lidar['crs'],
     resampling=Resampling.nearest)
+
 #combine the orthomosaic with the DTM and DEM
+# Initialize a new array with an extra band
 resampled_dem_lidar = resampled_dem_lidar[np.newaxis, :, :]
 resampled_dtm_lidar = resampled_dtm_lidar[np.newaxis, :, :]
-# Initialize a new array with an extra band
 new_ortho_data_lidar = np.zeros((5, ortho_data_lidar.shape[1], ortho_data_lidar.shape[2]))
 new_ortho_data_lidar[:3, :, :] = ortho_data_lidar[:3, :, :]
 new_ortho_data_lidar[3, :, :] = resampled_dem_lidar[0, :, :]
 new_ortho_data_lidar[4, :, :] = resampled_dtm_lidar[0, :, :]
 ortho_data_lidar = new_ortho_data_lidar
 print(ortho_data_lidar.shape)
+
 ortho_meta_lidar.update(count=ortho_data_lidar.shape[0]) 
 output_lidar_mosaic_50ha_cropped_DTM_DEM = os.path.join(path_aux, "BCI_50ha_lidar_cropped_DTM_DEM.tif")
 with rasterio.open(output_lidar_mosaic_50ha_cropped_DTM_DEM, 'w', **ortho_meta_lidar) as dst:
@@ -169,6 +177,7 @@ for i in range(0, len(orthomosaics)):
     with rasterio.open(out_file_name, 'w', **ortho_meta) as dst:
             dst.write(ortho_data)
     print("finish combining the orthomosaics with the DSMs", i)
+    
 #crop all outputs to the shape of the 50ha plot
 products= os.listdir(path_output)
 for product in products:
@@ -223,7 +232,7 @@ CRL.calculate_spatial_shifts()
 CRL.correct_shifts()
 
 
-#globally correct the photogrammetry orthomosaic closer to the lidar
+#globally correct the photogrammetry orthomosaic with the closest date to the lidar
 if not os.path.exists(os.path.join(wd_path,'Product_global')):
     os.makedirs(os.path.join(wd_path,'Product_global'))
 
@@ -259,6 +268,7 @@ for i in range(0,len(points)):
 print('finish the global alignment of first orthomosaic')
 
 
+#Listing can be done regularly with os.lisdir(), however I needed to be absolutly sure that they were in the right order
 list_of_files =  [f for f in os.listdir(os.path.join(wd_path,'Product_cropped')) if f.endswith('.tif')]
 dates_files = [(datetime.strptime(f[9:19], '%Y_%m_%d'), f) for f in list_of_files if f.endswith('.tif')]
 dates_files.sort()
@@ -266,6 +276,8 @@ list_dates = [f for _, f in dates_files]
 
 reference=output_path2
 reference2=output_path2
+
+#backward loop starts in 2023_05_23 and 2018_04_04
 for date in list_dates[69::-1]:
     print(date)
     target=os.path.join(wd_path,"Product_cropped", date)
@@ -276,7 +288,7 @@ for date in list_dates[69::-1]:
                         'fmt_out': 'GTIFF',
                         'q': False,
                         'min_reliability': 30,
-                        'r_b4match': 2,
+                        'r_b4match': 2,  
                         's_b4match': 2,
                         'max_shift': 100,
                         'nodata':(0, 0),
@@ -333,6 +345,7 @@ for date in list_dates[69::-1]:
     print('finish the global alignment of the orthomosaic', date)
 
 reference= reference2
+#forward loop starts in 2023_05_23 and 2023_10_24
 for date in list_dates[70:90]:
     print(date)
     target=os.path.join(wd_path,"Product_cropped", date)
@@ -399,21 +412,12 @@ end_time = time.time()  # Stop the timer
 elapsed_time = end_time - start_time  # Calculate the elapsed time
 print("Time taken: {} seconds in aligment".format(elapsed_time))
 
-print("starting the veritcal alignment")
+
+#start the vertical aligment of the global products
+print("starting the vertical alignment")
 start_time = time.time() 
-
-# Define the path to the working directory
-wd_path = r"/home/vasquezv/BCI_50ha"
-files_to_align= os.listdir(os.path.join(wd_path,'Product_cropped'))
 lidar_orthomosaic= os.path.join(wd_path,'aux_files','output_lidar_mosaic_50ha_cropped_DTM_DEM.tif')
-
-print("the working directory is: ", wd_path)
-print("the files to align are: ", files_to_align)
-print("the lidar orthomosaic is: ", lidar_orthomosaic)
-
-
 closest_date=r'BCI_50ha_2023_05_23_orthomosaic.tif'
-closest_date_path=os.path.join(wd_path,'Product_cropped',closest_date)
 
 #read the lidar DEM
 print("finish housekeeping")
@@ -444,9 +448,9 @@ with rasterio.open(lidar_orthomosaic) as src:
     with rasterio.open(output_path3, 'w', **dem_meta_lidar) as dst:
         dst.write(dem_resampled)
 
-print("finish resampling the lidar orthomosaic")
-#we read and get the np median without the nodata values  
+print("finish resampling the lidar orthomosaic to match the photogrammetry orthomosaic")
 
+#we read and get the np median without the nodata values  
 with rasterio.open(lidar_orthomosaic.replace("DTM_DEM.tif","DTM_DEM_resampled.tif")) as src:
     dem_data_lidar = src.read(4)
     dem_meta_lidar = src.meta
@@ -463,15 +467,17 @@ with rasterio.open(os.path.join(wd_path,'Product_global',closest_date.replace('_
     with rasterio.open(output_path3, 'w', **meta) as dst:
         dst.write(data)
 
-print("finish aligning veritcally the closest date orthomosaic")
+print("finish aligning vertically the closest date orthomosaic")
+
 #list the horizontally aligened files
-from datetime import datetime
+
 list_of_files = os.listdir(os.path.join(wd_path, 'Product_global'))
 dates_files = [(datetime.strptime(f[9:19], '%Y_%m_%d'), f) for f in list_of_files if f.endswith('.tif')]
 dates_files.sort()
 sorted_files = [f for _, f in dates_files]
 
 reference_main= os.path.join(wd_path,'Product_vertical',closest_date.replace('_orthomosaic.tif','_aligned_global.tif'))
+#loop backwards for vertical aligment
 for date in sorted_files[69::-1]:
     start_i=time.time()
     print("aligning vertically the date: ", date)
@@ -514,13 +520,12 @@ for date in sorted_files[69::-1]:
         print("finish date in time: ", finish_i-start_i)
         print("finish backward aligment of date",date)
         
-
-print("finish foward aligment")
+print("finish backward aligment")
 print("starting foward aligment")
 reference_main= os.path.join(wd_path,'Product_vertical',closest_date.replace('_orthomosaic.tif','_aligned_global.tif'))
 for date in sorted_files[70:90]:
     start_d=time.time()
-    with rasterio.open(os.path.join(wd_path,'Product_vertical',closest_date.replace('_orthomosaic.tif','_aligned_global.tif'))) as src:
+    with rasterio.open(reference_main) as src:
         dem_data_photo = src.read(4)
         dem_meta_photo = src.meta
         ref=np.median(dem_data_photo[dem_data_photo!=0])
@@ -552,6 +557,167 @@ for date in sorted_files[70:90]:
         elif ref< tgt:
             dem_resampled[3,:,:]=dem_resampled[3,:,:]-(tgt-ref)
         output_path3 = os.path.join(wd_path,'Product_vertical',date)
+        with rasterio.open(output_path3, 'w', **dem_meta_date) as dst:
+            dst.write(dem_resampled)
+        print("finish date: ", date)
+        time_d=time.time()
+        reference_main=output_path3
+        print("finish in total time of date: ", start_d-time_d)
+
+print("finish forward aligment")
+finish_time = time.time()
+print("the total time was: ", finish_time-start_time)
+
+
+#vertical aligment of the local corrected orthomosaics
+print("starting the vertical alignment")
+start_time = time.time() 
+
+# Define the path to the working directory
+
+
+files_to_align= os.listdir(os.path.join(wd_path,'Product_cropped'))
+lidar_orthomosaic= os.path.join(wd_path,'aux_files','output_lidar_mosaic_50ha_cropped_DTM_DEM.tif')
+closest_date=r'BCI_50ha_2023_05_23_orthomosaic.tif'
+
+
+#read the lidar DEM
+print("finish housekeeping")
+with rasterio.open(os.path.join(wd_path,'Product_local',closest_date.replace('_orthomosaic.tif','_local.tif'))) as src:
+    dem_data_photo = src.read(4)
+    dem_meta_photo = src.meta
+
+#resampling the lidar DEM to match the photogrammetry DEM
+with rasterio.open(lidar_orthomosaic) as src:
+    dem_meta_lidar = src.meta
+    dem_resampled = np.zeros((dem_meta_lidar['count'], dem_meta_photo['height'], dem_meta_photo['width']), dtype=dem_meta_photo['dtype'])
+    for band in range(dem_meta_lidar['count']):
+        dem_data_lidar = src.read(band+1)
+        reproject(
+            dem_data_lidar, dem_resampled[band],
+            src_transform=dem_meta_lidar['transform'],
+            src_crs=dem_meta_lidar['crs'],
+            dst_transform=dem_meta_photo['transform'],
+            dst_crs=dem_meta_photo['crs'],
+            resampling=Resampling.nearest,
+            src_nodata=0,
+            dst_nodata=0)
+    dem_meta_lidar.update({'height': dem_meta_photo['height'],
+                       'width': dem_meta_photo['width'],
+                       'transform': dem_meta_photo['transform'],
+                       'crs': dem_meta_photo['crs']})
+    output_path3 = lidar_orthomosaic.replace("DTM_DEM.tif","DTM_DEM_resampled.tif")
+    with rasterio.open(output_path3, 'w', **dem_meta_lidar) as dst:
+        dst.write(dem_resampled)
+
+print("finish resampling the lidar orthomosaic")
+#we read and get the np median without the nodata values  
+
+with rasterio.open(lidar_orthomosaic.replace("DTM_DEM.tif","DTM_DEM_resampled.tif")) as src:
+    dem_data_lidar = src.read(4)
+    dem_meta_lidar = src.meta
+    ref=np.median(dem_data_lidar[dem_data_lidar!=0])
+with rasterio.open(os.path.join(wd_path,'Product_local',closest_date.replace('_orthomosaic.tif','_local.tif'))) as src:
+    dem_data_photo = src.read(4)
+    dem_meta_photo = src.meta
+    tgt=np.median(dem_data_photo[dem_data_photo!=0])
+    data=src.read()
+    data[3,:,:]=data[3,:,:]+(ref-tgt)
+    transform = src.transform
+    meta = src.meta
+    output_path3 = os.path.join(wd_path,'Vertical_local',closest_date.replace('_orthomosaic.tif','_local.tif'))
+    with rasterio.open(output_path3, 'w', **meta) as dst:
+        dst.write(data)
+
+print("finish aligning veritcally the closest date orthomosaic")
+#list the horizontally aligened files
+from datetime import datetime
+list_of_files = os.listdir(os.path.join(wd_path, 'Product_local'))
+dates_files = [(datetime.strptime(f[9:19], '%Y_%m_%d'), f) for f in list_of_files if f.endswith('.tif')]
+dates_files.sort()
+sorted_files = [f for _, f in dates_files]
+
+reference_main= os.path.join(wd_path,'Vertical_local',closest_date.replace('_orthomosaic.tif','_local.tif'))
+for date in sorted_files[69::-1]:
+    start_i=time.time()
+    print("aligning vertically the date: ", date)
+    with rasterio.open(reference_main) as src:
+        dem_data_photo = src.read(4)
+        dem_meta_photo = src.meta
+        ref=np.median(dem_data_photo[dem_data_photo!=0])
+        print("the median of the closest date is: ", ref)
+    with rasterio.open(os.path.join(wd_path,'Product_local',date)) as src:
+        dem_data_date = src.read()
+        dem_meta_date = src.meta
+        dem_resampled= np.zeros((dem_meta_date['count'], dem_meta_photo['height'], dem_meta_photo['width']), dtype=dem_meta_photo['dtype'])
+        for band in range(dem_meta_date['count']):
+            dem_data_date = src.read(band+1)
+            reproject(
+                dem_data_date, dem_resampled[band],
+                src_transform=dem_meta_date['transform'],
+                src_crs=dem_meta_date['crs'],
+                dst_transform=dem_meta_photo['transform'],
+                dst_crs=dem_meta_photo['crs'],
+                resampling=Resampling.nearest,
+                src_nodata=0,
+                dst_nodata=0)
+        dem_meta_date.update({'height': dem_meta_photo['height'],
+                       'width': dem_meta_photo['width'],
+                       'transform': dem_meta_photo['transform'],
+                       'crs': dem_meta_photo['crs']})
+        alpha_band = dem_resampled[-1]
+        tgt = np.median(alpha_band[alpha_band != 0])
+        print("the median of the date is: ", tgt)
+        if ref> tgt:
+            dem_resampled[3,:,:]=dem_resampled[3,:,:]+(ref-tgt)
+        elif ref< tgt:
+            dem_resampled[3,:,:]=dem_resampled[3,:,:]-(tgt-ref)
+        output_path3 = os.path.join(wd_path,'Vertical_local',date)
+        with rasterio.open(output_path3, 'w', **dem_meta_date) as dst:
+            dst.write(dem_resampled)
+        finish_i=time.time()
+        reference_main=output_path3
+        print("finish date in time: ", finish_i-start_i)
+        print("finish backward aligment of date",date)
+        
+
+print("finish foward aligment")
+print("starting foward aligment")
+reference_main= os.path.join(wd_path,'Vertical_local',closest_date.replace('_orthomosaic.tif','_local.tif'))
+for date in sorted_files[70:90]:
+    start_d=time.time()
+    with rasterio.open(reference_main) as src:
+        dem_data_photo = src.read(4)
+        dem_meta_photo = src.meta
+        ref=np.median(dem_data_photo[dem_data_photo!=0])
+        print("the median of the closest date is: ", ref)
+    with rasterio.open(os.path.join(wd_path,'Vertical_local',date)) as src:
+        dem_data_date = src.read()
+        dem_meta_date = src.meta
+        dem_resampled= np.zeros((dem_meta_date['count'], dem_meta_photo['height'], dem_meta_photo['width']), dtype=dem_meta_photo['dtype'])
+        for band in range(dem_meta_date['count']):
+            dem_data_date = src.read(band+1)
+            reproject(
+                dem_data_date, dem_resampled[band],
+                src_transform=dem_meta_date['transform'],
+                src_crs=dem_meta_date['crs'],
+                dst_transform=dem_meta_photo['transform'],
+                dst_crs=dem_meta_photo['crs'],
+                resampling=Resampling.nearest,
+                src_nodata=0,
+                dst_nodata=0)
+        dem_meta_date.update({'height': dem_meta_photo['height'],
+                       'width': dem_meta_photo['width'],
+                       'transform': dem_meta_photo['transform'],
+                       'crs': dem_meta_photo['crs']})
+        alpha_band = dem_resampled[-1]
+        tgt = np.median(alpha_band[alpha_band != 0])
+        print("the median of the date is: ", tgt)
+        if ref> tgt:
+            dem_resampled[3,:,:]=dem_resampled[3,:,:]+(ref-tgt)
+        elif ref< tgt:
+            dem_resampled[3,:,:]=dem_resampled[3,:,:]-(tgt-ref)
+        output_path3 = os.path.join(wd_path,'Vertical_local',date)
         with rasterio.open(output_path3, 'w', **dem_meta_date) as dst:
             dst.write(dem_resampled)
         print("finish date: ", date)
