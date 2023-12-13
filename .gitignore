@@ -11,7 +11,6 @@ LandscapeScripts/get_file_paths.py
 LandscapeScripts/get_file_paths.bat
 LandscapeScripts/convention_checker1.bat
 LandscapeScripts/metadata.py
-LandscapeScripts/segmentation.py
 # Exceptions for specific files if needed
 !*.md
 
