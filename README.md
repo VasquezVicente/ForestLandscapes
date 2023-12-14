@@ -46,25 +46,27 @@ Garcia, M., Vasquez, V.,Muller-Landau, H. (2023). Barro Colorado whole-island ae
         -shapely 2.0.1 py39hd7f5953_0
         
 ### crown_segmentation.py
-The script crown_segmentation.py contains the complete workflow for segmentation of tree crowns and QAQC for the improved crown maps in the data publication [Vasquez et al. 2023](https://doi.org/10.25573/data.24784053). The script contains 3 functions used for the crown segmentation workflow, first we tile_ortho() is used tile the orthomosaic by given inputs of tile size and buffer. Then we perform instance segmentation using the model sam_vit_h_4b8939.pth avaliable in the github repository https://github.com/facebookresearch/segment-anything(Krillov, 2023). The function crown_segment() takes as input a folder with tiles in Geotiff format, a shapefile with columns of GlobalID and tag for each polygon and tree respectively, and output file path. Furthemore, the function crown_avoid() removes all polygon overlaps by substracting the overlap from the polygon with the largest area. 
-
-Modules used:
-        -rasterio 1.2.10 py39h17c1fa0_0
-        -numpy 1.25.1 pypi_0
-        -geopandas 0.13.0 pypi_0
-        -pandas 2.0.1 pypi_0
-        -segement-anything 1.0 pypi_0
-        -shapely 2.0.1 py39hd7f5953_0
-        -opencv 4.6.0 py39hf11a4ad_3
-        -pytorch 2.0.0 py3.9_cuda11.7_cudnn8_0
-
-Disclaimer: I do not own, distribute, modify ,neither profit from the use of the Models developed by (Ball,2023), (Krillov, 2023), and (Scheffler, 2017). All credit for the development of the algorithms here used should go to the reference authors. I take credit for the development of a workflow to implement their algorithms with the purpose of tracking tree crowns in the Tropical forest of Panama. 
+    The script crown_segmentation.py contains the complete workflow for segmentation of tree crowns and QAQC for the improved crown maps in the data publication [Vasquez et al. 2023](https://doi.org/10.25573/data.24784053). The script contains 3 functions used for the crown segmentation workflow, first we tile_ortho() is used tile the orthomosaic by given inputs of tile size and buffer. Then we perform instance segmentation using the model sam_vit_h_4b8939.pth avaliable in the github repository https://github.com/facebookresearch/segment-anything(Krillov, 2023). The function crown_segment() takes as input a folder with tiles in Geotiff format, a shapefile with columns of GlobalID and tag for each polygon and tree respectively, and output file path. Furthemore, the function crown_avoid() removes all polygon overlaps by substracting the overlap from the polygon with the largest area. 
+    
+    Modules used:
+            -rasterio 1.2.10 py39h17c1fa0_0
+            -numpy 1.25.1 pypi_0
+            -geopandas 0.13.0 pypi_0
+            -pandas 2.0.1 pypi_0
+            -segement-anything 1.0 pypi_0
+            -shapely 2.0.1 py39hd7f5953_0
+            -opencv 4.6.0 py39hf11a4ad_3
+            -pytorch 2.0.0 py3.9_cuda11.7_cudnn8_0
 
 
-References
+
+##References
 Kirillov, A., Mintun, E., Ravi, N., Mao, H., Rolland, C., Gustafson, L., Xiao, T., Whitehead, S., Berg, A. C., Lo, W.-Y., Dollár, P., & Girshick, R. (2023). Segment Anything. arXiv preprint arXiv:2304.02643.
 Scheffler D, Hollstein A, Diedrich H, Segl K, Hostert P. AROSICS: An Automated and Robust Open-Source Image Co-Registration Software for Multi-Sensor Satellite Data. Remote Sensing. 2017; 9(7):676.]
 Ball, J.G.C., Hickman, S.H.M., Jackson, T.D., Koay, X.J., Hirst, J., Jay, W., Archer, M., Aubry-Kientz, M., Vincent, G. and Coomes, D.A. (2023), Accurate delineation of individual tree crowns in tropical forests from aerial RGB imagery using Mask R-CNN. Remote Sens Ecol Conserv. 9(5):641-655. https://doi.org/10.1002/rse2.332
+
+Disclaimer: I do not own, distribute, modify ,neither profit from the use of the Models developed by (Ball,2023), (Krillov, 2023), and (Scheffler, 2017). All credit for the development of the algorithms here used should go to the reference authors. I take credit for the development of a workflow to implement their algorithms with the purpose of tracking tree crowns in the Tropical forest of Panama. 
+
 
 
         
