@@ -3,15 +3,12 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import rasterio
-import random
 import cv2
 import numpy as np
 import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.geometry import box as box1
-import scipy.ndimage
 from matplotlib.patches import Rectangle
-##from skimage.feature import greycomatrix, greycoprops
 import time 
 from tqdm import tqdm
 #AI
