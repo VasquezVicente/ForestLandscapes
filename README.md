@@ -20,6 +20,7 @@ Garcia, M., Vasquez, V.,Muller-Landau, H. (2023). Barro Colorado whole-island ae
 
 ## LandscapeScripts
 ### UAV_photogrametry.py
+
     The script UAV_photogrametry.py is an standard processing workflow in Agisoft Metashape 2.0 python API. The script takes a mission folder containing a subdirectory called Images. It process the images using key parameters such as higuest aligning setting, build point cloud in medium setting, filter points aggressively, build digital surface model and build orthomosaic. The exports are done in coordinate reference system UTM 17 N or epsg 32617, rasters are exported as GeoTIFF and point clouds as Polygon file format (.ply). This simplified code was used to process the whole Barro colorado island flights and the 50ha plot flights.
 
     Modules used:
@@ -27,6 +28,7 @@ Garcia, M., Vasquez, V.,Muller-Landau, H. (2023). Barro Colorado whole-island ae
         -Metashape-2.0.3-cp37.cp38.cp39.cp310.cp311-none-win_amd64.whl
 
 ### 50ha_aligment.py
+
     The script 50ha_aligment.py is a complete workflow and performs multiple tasks such as combining, cropping, reprojecting, aligning locally, globally and performing elevation correction.
     It combines the orthomosaics and digital surface models into a single raster by reprojecting the DSM's to the shape of the orthomosaics and replace the alpha band with the DSM. Note: be sure to set the 4th band to none if the RGB doesnt looks right in your visualization software. 
     It crops all the combine products to buffered shape of the BCI 50ha plot. 20 meters were added to the xmax and ymax of the plot and 20 meters were substracted from the xmin and ymin of the plot. 
@@ -46,7 +48,8 @@ Garcia, M., Vasquez, V.,Muller-Landau, H. (2023). Barro Colorado whole-island ae
         -shapely 2.0.1 py39hd7f5953_0
         
 ### crown_segmentation.py
-        The script crown_segmentation.py contains the complete workflow for segmentation of tree crowns and QAQC for the improved crown maps in the data publication [Vasquez et al. 2023](https://doi.org/10.25573/data.24784053). The script contains 3 functions used for the crown segmentation workflow, first we tile_ortho() is used tile the orthomosaic by given inputs of tile size and buffer. Then we perform instance segmentation using the model sam_vit_h_4b8939.pth avaliable in the github repository https://github.com/facebookresearch/segment-anything(Krillov, 2023). The function crown_segment() takes as input a folder with tiles in Geotiff format, a shapefile with columns of GlobalID and tag for each polygon and tree respectively, and output file path. Furthemore, the function crown_avoid() removes all polygon overlaps by substracting the overlap from the polygon with the largest area. 
+
+The script crown_segmentation.py contains the complete workflow for segmentation of tree crowns and QAQC for the improved crown maps in the data publication [Vasquez et al. 2023](https://doi.org/10.25573/data.24784053). The script contains 3 functions used for the crown segmentation workflow, first we tile_ortho() is used tile the orthomosaic by given inputs of tile size and buffer. Then we perform instance segmentation using the model sam_vit_h_4b8939.pth avaliable in the github repository https://github.com/facebookresearch/segment-anything(Krillov, 2023). The function crown_segment() takes as input a folder with tiles in Geotiff format, a shapefile with columns of GlobalID and tag for each polygon and tree respectively, and output file path. Furthemore, the function crown_avoid() removes all polygon overlaps by substracting the overlap from the polygon with the largest area. 
     
         Modules used:
                 -rasterio 1.2.10 py39h17c1fa0_0
@@ -59,7 +62,7 @@ Garcia, M., Vasquez, V.,Muller-Landau, H. (2023). Barro Colorado whole-island ae
                 -pytorch 2.0.0 py3.9_cuda11.7_cudnn8_0
 
 
-##References
+### References
 Kirillov, A., Mintun, E., Ravi, N., Mao, H., Rolland, C., Gustafson, L., Xiao, T., Whitehead, S., Berg, A. C., Lo, W.-Y., Dollár, P., & Girshick, R. (2023). Segment Anything. arXiv preprint arXiv:2304.02643.
 Scheffler D, Hollstein A, Diedrich H, Segl K, Hostert P. AROSICS: An Automated and Robust Open-Source Image Co-Registration Software for Multi-Sensor Satellite Data. Remote Sensing. 2017; 9(7):676.]
 Ball, J.G.C., Hickman, S.H.M., Jackson, T.D., Koay, X.J., Hirst, J., Jay, W., Archer, M., Aubry-Kientz, M., Vincent, G. and Coomes, D.A. (2023), Accurate delineation of individual tree crowns in tropical forests from aerial RGB imagery using Mask R-CNN. Remote Sens Ecol Conserv. 9(5):641-655. https://doi.org/10.1002/rse2.332
