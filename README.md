@@ -65,7 +65,9 @@ The script crown_segmentation.py contains the complete workflow for segmentation
 ### References
 
 Kirillov, A., Mintun, E., Ravi, N., Mao, H., Rolland, C., Gustafson, L., Xiao, T., Whitehead, S., Berg, A. C., Lo, W.-Y., Dollár, P., & Girshick, R. (2023). Segment Anything. arXiv preprint arXiv:2304.02643.
+
 Scheffler D, Hollstein A, Diedrich H, Segl K, Hostert P. AROSICS: An Automated and Robust Open-Source Image Co-Registration Software for Multi-Sensor Satellite Data. Remote Sensing. 2017; 9(7):676.]
+
 Ball, J.G.C., Hickman, S.H.M., Jackson, T.D., Koay, X.J., Hirst, J., Jay, W., Archer, M., Aubry-Kientz, M., Vincent, G. and Coomes, D.A. (2023), Accurate delineation of individual tree crowns in tropical forests from aerial RGB imagery using Mask R-CNN. Remote Sens Ecol Conserv. 9(5):641-655. https://doi.org/10.1002/rse2.332
 
 Disclaimer: I do not own, distribute, modify ,neither profit from the use of the Models developed by (Ball,2023), (Krillov, 2023), and (Scheffler, 2017). All credit for the development of the algorithms here used should go to the reference authors. I take credit for the development of a workflow to implement their algorithms with the purpose of tracking tree crowns in the Tropical forest of Panama. 
