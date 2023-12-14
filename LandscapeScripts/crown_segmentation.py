@@ -10,7 +10,6 @@ from shapely.geometry import Polygon, MultiPolygon
 from shapely.geometry import box as box1
 from matplotlib.patches import Rectangle
 import time 
-from tqdm import tqdm
 #AI
 from segment_anything import SamPredictor
 from segment_anything import sam_model_registry
