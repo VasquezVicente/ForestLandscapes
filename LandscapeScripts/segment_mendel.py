@@ -288,7 +288,7 @@ for ortho in reversed(orthomosaic_list[:24]):
      print("finish tiling orthomosaic")
      input_orthomosaic= os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5]))
      output_shp= os.path.join(crownmaps_path, "_".join(os.path.basename(ortho).split("_")[2:5])+".shp")
-     crown_segment(input_orthomosaic,crown2020_path,output_shp)
+     crown_segment(input_orthomosaic,crownmap2020_path,output_shp)
      print("finish instance segmentation")
 
      crownmap=gpd.read_file(output_shp)
@@ -305,7 +305,7 @@ for ortho in reversed(orthomosaic_list[:24]):
      print("finish crown avoidance")
 
         #we merge the other fields from the original shapefile on global id
-     orig= gpd.read_file(crown2020_path)
+     orig= gpd.read_file(crownmap2020_path)
      improved= gpd.read_file(dir_out3)
      orig=orig[['Mnemonic', 'Latin','CrownCondi', 'Illuminati', 'Lianas',  'Inclinatio', 
             'Notes','stem_X', 'stem_Y',  'centroid_X',
@@ -314,4 +314,4 @@ for ortho in reversed(orthomosaic_list[:24]):
      final=improved.merge(orig, on='GlobalID', how='left')
      final.to_file(dir_out3.replace("avoided.shp","improved.shp"))
      print("finish merging fields")
-     crown2020_path=dir_out3.replace("avoided.shp","improved.shp")
+     crownmap2020_path=dir_out3.replace("avoided.shp","improved.shp")
