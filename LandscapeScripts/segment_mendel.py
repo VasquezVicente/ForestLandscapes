@@ -1,3 +1,4 @@
+#Notes: this script only uses 2020_08_01 crownmap as input
 import os
 import geopandas as gpd
 import pandas as pd
@@ -282,36 +283,105 @@ orthomosaic_list.sort()
 
 for ortho in reversed(orthomosaic_list[:24]):
      print(ortho)
-     if not os.path.exists(os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5]))):
-         os.makedirs(os.path.join(local_aligment,"tiles", os.path.basename(ortho).replace(".tif","")))
-     tile_ortho(ortho,100,20,os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5])))
-     print("finish tiling orthomosaic")
-     input_orthomosaic= os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5]))
-     output_shp= os.path.join(crownmaps_path, "_".join(os.path.basename(ortho).split("_")[2:5])+".shp")
-     crown_segment(input_orthomosaic,crownmap2020_path,output_shp)
-     print("finish instance segmentation")
+for ortho in orthomosaic_list[:24]:
+     final_path= os.path.join(crownmaps_path, "_".join(os.path.basename(ortho).split("_")[2:5])+"_improved.shp")
+     if not os.path.exists(final_path):
+        start = time.time()
+        print(ortho)
+        if not os.path.exists(os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5]))):
+            os.makedirs(os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5])))
+        tile_ortho(ortho,100,20,os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5])))
+        print("finish tiling orthomosaic")
+        input_orthomosaic= os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5]))
+        output_shp= os.path.join(crownmaps_path, "_".join(os.path.basename(ortho).split("_")[2:5])+".shp")
+        crown_segment(input_orthomosaic,crownmap2020_path,output_shp)
+        print("finish instance segmentation")
 
-     crownmap=gpd.read_file(output_shp)
-     crownmap2020_tag = crownmap.sort_values('score', ascending=False)
-     crownmap2020_tag = crownmap.drop_duplicates('GlobalID', keep='first')
+        crownmap=gpd.read_file(output_shp)
+        crownmap2020_tag = crownmap.sort_values('score', ascending=False)
+        crownmap2020_tag = crownmap.drop_duplicates('GlobalID', keep='first')
+        
+        #path fixed
+        dir_out2= output_shp.replace(".shp","_cleaned.shp")
+        crownmap2020_tag.to_file(dir_out2)
+        print("finish cleaning")
+            #run crown avoidance code
+        crown_avoided=crown_avoid(dir_out2)
+        dir_out3=dir_out2.replace("_cleaned.shp","_avoided.shp")
+        crown_avoided.to_file(dir_out3)
+        print("finish crown avoidance")
 
-     dir_out2= os.path.join(r"D:\crown_maps\crown_segmentation\2020_08_01", "_".join(os.path.basename(ortho).split("_")[2:5]).replace(".shp","_cleaned.shp"))
-     crownmap2020_tag.to_file(dir_out2)
-     print("finish cleaning")
-        #run crown avoidance code
-     crown_avoided=crown_avoid(dir_out2)
-     dir_out3=dir_out2.replace("cleaned.shp","avoided.shp")
-     crown_avoided.to_file(dir_out3)
-     print("finish crown avoidance")
+            #we merge the other fields from the original shapefile on global id
+        orig= gpd.read_file(crownmap2020_path)
+        improved= gpd.read_file(dir_out3)
+        orig=orig[['Mnemonic', 'Latin','CrownCondi', 'Illuminati', 'Lianas',  'Inclinatio', 
+                'Notes','stem_X', 'stem_Y',  'centroid_X',
+                'centroid_Y', 'stemDist','DBH', 'crownArea', 'GlobalID',
+                'Editor', 'EditDate','Person', 'FieldDate','Creator']]
+        final=improved.merge(orig, on='GlobalID', how='left')
+        final.to_file(dir_out3.replace("avoided.shp","improved.shp"))
+        print("finish merging fields")
+        crownmap2020_path=dir_out3.replace("avoided.shp","improved.shp")
+        end = time.time()
+        print(f"Time taken: {end - start}")
+     else:
+        print("already processed")
+        continue
 
-        #we merge the other fields from the original shapefile on global id
-     orig= gpd.read_file(crownmap2020_path)
-     improved= gpd.read_file(dir_out3)
-     orig=orig[['Mnemonic', 'Latin','CrownCondi', 'Illuminati', 'Lianas',  'Inclinatio', 
-            'Notes','stem_X', 'stem_Y',  'centroid_X',
-            'centroid_Y', 'stemDist','DBH', 'crownArea', 'GlobalID',
-            'Editor', 'EditDate','Person', 'FieldDate','Creator']]
-     final=improved.merge(orig, on='GlobalID', how='left')
-     final.to_file(dir_out3.replace("avoided.shp","improved.shp"))
-     print("finish merging fields")
-     crownmap2020_path=dir_out3.replace("avoided.shp","improved.shp")
+
+
+#foward segementation
+crownmaps_path = r"/home/vasquezv/BCI_50ha/crown_segmentation"
+local_aligment= r"/home/vasquezv/BCI_50ha/Vertical_local"
+
+crownmap2020_path = r"/home/vasquezv/BCI_50ha/aux_files/BCI_50ha_2020_08_01_crownmap_improved.shp"
+orthomosaic_list = [os.path.join(local_aligment, f) for f in os.listdir(local_aligment) if f.endswith('.tif')]
+orthomosaic_list.sort()
+
+for ortho in reversed(orthomosaic_list[26:]):
+     print(ortho)
+     
+for ortho in orthomosaic_list[26:]:
+     final_path= os.path.join(crownmaps_path, "_".join(os.path.basename(ortho).split("_")[2:5])+"_improved.shp")
+     if not os.path.exists(final_path):
+        start = time.time()
+        print(ortho)
+        if not os.path.exists(os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5]))):
+            os.makedirs(os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5])))
+        tile_ortho(ortho,100,20,os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5])))
+        print("finish tiling orthomosaic")
+        input_orthomosaic= os.path.join(local_aligment,"tiles","_".join(os.path.basename(ortho).split("_")[2:5]))
+        output_shp= os.path.join(crownmaps_path, "_".join(os.path.basename(ortho).split("_")[2:5])+".shp")
+        crown_segment(input_orthomosaic,crownmap2020_path,output_shp)
+        print("finish instance segmentation")
+
+        crownmap=gpd.read_file(output_shp)
+        crownmap2020_tag = crownmap.sort_values('score', ascending=False)
+        crownmap2020_tag = crownmap.drop_duplicates('GlobalID', keep='first')
+        
+        #path fixed
+        dir_out2= output_shp.replace(".shp","_cleaned.shp")
+        crownmap2020_tag.to_file(dir_out2)
+        print("finish cleaning")
+            #run crown avoidance code
+        crown_avoided=crown_avoid(dir_out2)
+        dir_out3=dir_out2.replace("_cleaned.shp","_avoided.shp")
+        crown_avoided.to_file(dir_out3)
+        print("finish crown avoidance")
+
+            #we merge the other fields from the original shapefile on global id
+        orig= gpd.read_file(crownmap2020_path)
+        improved= gpd.read_file(dir_out3)
+        orig=orig[['Mnemonic', 'Latin','CrownCondi', 'Illuminati', 'Lianas',  'Inclinatio', 
+                'Notes','stem_X', 'stem_Y',  'centroid_X',
+                'centroid_Y', 'stemDist','DBH', 'crownArea', 'GlobalID',
+                'Editor', 'EditDate','Person', 'FieldDate','Creator']]
+        final=improved.merge(orig, on='GlobalID', how='left')
+        final.to_file(dir_out3.replace("avoided.shp","improved.shp"))
+        print("finish merging fields")
+        crown2020_path=dir_out3.replace("avoided.shp","improved.shp")
+        end = time.time()
+        print(f"Time taken: {end - start}")
+     else:
+        print("already processed")
+        continue
