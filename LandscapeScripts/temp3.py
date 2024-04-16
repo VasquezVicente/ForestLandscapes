@@ -129,13 +129,13 @@ BCI_50ha.to_crs(epsg=32617, inplace=True)
 BCI_50ha_buffer = box(BCI_50ha.bounds.minx-20, BCI_50ha.bounds.miny-20, BCI_50ha.bounds.maxx+20, BCI_50ha.bounds.maxy+20)  # Create a buffer around the plot
 
 #working directory
-
-path_orthomosaic = os.path.join(BCI_50ha_directory, "Orthophoto")
-path_DSM = os.path.join(BCI_50ha_directory, "DSM")
-path_output= os.path.join(BCI_50ha_directory, "Product")
-path_cropped= os.path.join(BCI_50ha_directory, "Product_cropped")
-tile_folder_base= os.path.join(BCI_50ha_directory, "tiles")
-base_output_path = os.path.join(BCI_50ha_directory, "output")
+wd_path= r"/home/BCI_50ha"
+path_orthomosaic = os.path.join(wd_path, "Orthophoto")
+path_DSM = os.path.join(wd_path, "DSM")
+path_output= os.path.join(wd_path, "Product")
+path_cropped= os.path.join(wd_path, "Product_cropped")
+tile_folder_base= os.path.join(wd_path, "tiles")
+base_output_path = os.path.join(wd_path, "output")
 if not os.path.exists(path_orthomosaic):   
     os.makedirs(path_orthomosaic)
 if not os.path.exists(path_DSM):
