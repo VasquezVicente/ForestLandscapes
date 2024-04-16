@@ -1,4 +1,4 @@
-#Notes: this script only uses 2020_08_01 crownmap as input
+#Notes: this script only uses 2020_08_01 crownmap as input, it is currently working anf functioning as expected
 import os
 import geopandas as gpd
 import pandas as pd
@@ -340,7 +340,7 @@ orthomosaic_list.sort()
 
 for ortho in reversed(orthomosaic_list[26:]):
      print(ortho)
-     
+
 for ortho in orthomosaic_list[26:]:
      final_path= os.path.join(crownmaps_path, "_".join(os.path.basename(ortho).split("_")[2:5])+"_improved.shp")
      if not os.path.exists(final_path):

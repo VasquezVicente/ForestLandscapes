@@ -1,3 +1,4 @@
+#the following code is working without issues. pass all tests. 
 import os
 import time
 import copy
@@ -14,10 +15,14 @@ from rasterio.features import shapes
 from datetime import datetime
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from arosics import COREG, COREG_LOCAL
+from shapely.geometry import box as box1
+import matplotlib.pyplot as plt
+import matplotlib	
+matplotlib.use('TkAgg')
 
 #Main directory
-wd_path = r"/home/vasquezv/BCI_50ha"
-
+#wd_path = r"/home/vasquezv/BCI_50ha"
+wd_path = r"D:\BCI_50ha"
 #subdirectories
 path_orthomosaic = os.path.join(wd_path, "Orthophoto")
 path_DSM = os.path.join(wd_path, "DSM")
@@ -137,13 +142,19 @@ new_ortho_data_lidar = np.zeros((5, ortho_data_lidar.shape[1], ortho_data_lidar.
 new_ortho_data_lidar[:3, :, :] = ortho_data_lidar[:3, :, :]
 new_ortho_data_lidar[3, :, :] = resampled_dem_lidar[0, :, :]
 new_ortho_data_lidar[4, :, :] = resampled_dtm_lidar[0, :, :]
-ortho_data_lidar = new_ortho_data_lidar
-print(ortho_data_lidar.shape)
+print(new_ortho_data_lidar.shape)
 
-ortho_meta_lidar.update(count=ortho_data_lidar.shape[0]) 
+ortho_meta_lidar.update(count=5) 
 output_lidar_mosaic_50ha_cropped_DTM_DEM = os.path.join(path_aux, "BCI_50ha_lidar_cropped_DTM_DEM.tif")
 with rasterio.open(output_lidar_mosaic_50ha_cropped_DTM_DEM, 'w', **ortho_meta_lidar) as dst:
-    dst.write(ortho_data_lidar)
+    dst.write(new_ortho_data_lidar)
+
+
+
+#whole island combined dsm and orthomosaic function def
+
+
+
 #combine the DSM and the orthomosaic
 orthomosaics= os.listdir(path_orthomosaic)
 DSMs= os.listdir(path_DSM)

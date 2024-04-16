@@ -1,15 +1,11 @@
+#raster tools
 import os
-import geopandas as gpd
-import pandas as pd
-import rasterio 
-import matplotlib.pyplot as plt
+import rasterio
 import numpy as np
-from rasterio.plot import show
-from skimage import exposure
-from skimage.transform import rescale
-from scipy.ndimage import zoom
-
-#utility modules
+from rasterio.warp import reproject, Resampling
+import geopandas as gpd
+from rasterio.mask import mask
+import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
@@ -35,27 +31,118 @@ from rasterio.features import geometry_mask
 from rasterio import windows
 from rasterio.plot import show
 
-current_directory = os.getcwd()
-print(current_directory)
+#combine function, remeber to deal with uint8 problem which wont hold a value above 255
+def combine_ortho_dsm(ortho_path,dsm_path, output_path):
+    with rasterio.open(ortho_path) as src:
+        ortho_data = src.read()
+        ortho_meta = src.meta.copy()
+    with rasterio.open(dsm_path) as src:
+        dem_data = src.read(1)
+        dem_meta = src.meta
+        dem_data=np.where(dem_data==dem_meta['nodata'],0,dem_data)
+    resampled_dem = np.zeros((ortho_meta['height'], ortho_meta['width']), dtype=ortho_data.dtype)
+    reproject(
+    dem_data, resampled_dem,
+    src_transform=dem_meta['transform'],
+    src_crs=dem_meta['crs'],
+    dst_transform=ortho_meta['transform'],
+    dst_crs=ortho_meta['crs'],
+    resampling=Resampling.nearest)
+    ortho_data[3,:,:] = resampled_dem
+    ortho_meta['count'] = 4
+    with rasterio.open(output_path, 'w', **ortho_meta) as dst:
+        dst.write(ortho_data)
+#crop function 
+def crop_raster(input_path, output_path, shapely_polygon):
+    with rasterio.open(input_path) as src:
+        out_image, out_transform = rasterio.mask.mask(src, [shapely_polygon], crop=True)
+        out_meta = src.meta.copy()
+        out_meta.update({"driver": "GTiff",
+                         "height": out_image.shape[1],
+                         "width": out_image.shape[2],
+                         "transform": out_transform})
+    with rasterio.open(output_path, "w", **out_meta) as dest:
+        dest.write(out_image)
+#reproject function
+def calc_chm(dtm_path, ortho_path, output_path):
+    with rasterio.open(dtm_path) as src:
+        dtm_data = src.read(1)
+        dtm_meta = src.meta.copy()
+    with rasterio.open(ortho_path) as src:
+        ortho_data = src.read()
+        ortho_meta = src.meta.copy()
 
-#50ha shapefile for boundaries
-shape_50ha=r"D:\BCI_50ha\aux_files\BCI_Plot_50ha.shp"
-shapefile = gpd.read_file(shape_50ha)
-shapefile.to_crs(epsg=32617, inplace=True)
-print(shapefile.crs)
-shapefile.plot()
-plt.show()
+    reprojected_dtm = np.zeros((ortho_meta['height'], ortho_meta['width']), dtype=dtm_data.dtype)
+    reproject(
+        dtm_data, reprojected_dtm,
+        src_transform=dtm_meta['transform'],
+        src_crs=dtm_meta['crs'],
+        dst_transform=ortho_meta['transform'],
+        dst_crs=ortho_meta['crs'],
+        resampling=Resampling.nearest)
+    chm=ortho_data[3,:,:]-reprojected_dtm
+    chm=np.where(chm>150,0,chm)
+    chm=np.where(chm<0,0,chm)
+    ortho_data[3,:,:]=chm
+    ortho_meta['count'] = 4
+    with rasterio.open(output_path, 'w', **ortho_meta) as dst:
+        dst.write(ortho_data)
+#still not ready
+def align_vertically(tar,ref,output_path,re_ref=True, max_shift=50, tar_is_ortho=True):
+    with rasterio.open(tar) as src:
+            tar_data=src.read(4)
+            tar_meta=src.meta.copy()
+    with rasterio.open(ref) as src:
+        ref_data=src.read(1)
+        ref_meta=src.meta.copy()
+    if re_ref==True:
+        reprojected_ref = np.zeros((tar_meta['height'], tar_meta['width']), dtype=np.float64)
+        reproject(
+            ref_data, reprojected_ref,
+            src_transform=ref_meta['transform'],
+            src_crs=ref_meta['crs'],
+            dst_transform=tar_meta['transform'],
+            dst_crs=tar_meta['crs'],
+            resampling=Resampling.nearest)
+    delta = tar_data - reprojected_ref
+    delta_nodata= delta[~np.isnan(delta)]
+    median_key=np.median(delta_nodata)
+    print("median_key",median_key)
+
+    with rasterio.open(tar) as src:
+        tar_data = src.read()  
+        tar_meta = src.meta.copy()
+    # Subtract median_key from elements of ortho_data that are greater than zero
+        tar_data[3,:,:] = np.where((tar_data[3,:,:]>0)|(tar_data[3,:,:]<255), tar_data[3,:,:] - np.int8(median_key), 0)
+        plt.imshow(tar_data[3,:,:])
+        plt.show()
+    
 
 
-# segment anything model
-MODEL_TYPE = "vit_h"
-checkpoint = r"C:\Users\VasquezV\repo\crown-segment\models\sam_vit_h_4b8939.pth"
-device = 'cuda'
-sam = sam_model_registry[MODEL_TYPE](checkpoint=checkpoint)
-#sam.to(device=device)  #requires cuda cores
-mask_predictor = SamPredictor(sam)
+    plt.hist(delta[~np.isnan(delta)], bins=100)	
+    plt.show()
+    np.median(delta[~np.isnan(delta)])
+    delta_notna=delta_shift[delta_shift != 0]
+    np.median(delta_shift[~np.isnan(delta_shift)])
+
+
+    delta_notna=delta_shift[~np.isnan(delta_shift)]
+    median_key=np.median(delta_notna)
+    print("median_key",median_key)   
+    with rasterio.open(tar) as src:
+        tar_data = src.read()  
+        tar_meta = src.meta.copy()
+    # Subtract median_key from elements of ortho_data that are greater than zero
+    tar_data[3,:,:] = np.where(tar_data[3,:,:] > 0, tar_data[3,:,:] - np.int8(median_key), tar_data[3,:,:])
+    tar_meta['count'] = 4
+    with rasterio.open(output_path, 'w', **tar_meta) as dst:
+        dst.write(tar_data)
+
+    return median_key
 
 #functions
+#tile ortho divides and orthomosaic into tiles by taking an orthomosaic the x and y tile size and adding a buffer, the tile size its adjusted 
+#to deal with the residual of the division
 def tile_ortho(sub, tile_size, buffer, output_folder):
     with rasterio.open(sub) as src:
         bounds = src.bounds
@@ -107,6 +194,9 @@ def tile_ortho(sub, tile_size, buffer, output_folder):
             filename=os.path.join(output_folder,output_filename)
             with rasterio.open(filename, "w", **out_meta) as dest:
                 dest.write(out_image)
+#segmentation function takes a folder with tiles and a shapefile with the polygons to be segmented, it identifies the polygons within the tile
+#then it segments by inputting a torch tensor with multiple boxes, the output is a geodataframe with the polygons and the score of the segmentation
+#out of the 3 masks it selects the higuest score for the box and then it transforms the mask back to utm coordinates
 def crown_segment(tile_folder,shp,output_shapefile):
     all=[]
     tiles= os.listdir(tile_folder)
@@ -212,6 +302,10 @@ def crown_segment(tile_folder,shp,output_shapefile):
         final_gdfs.append(combined_gdf)
     final_gdf = gpd.GeoDataFrame(pd.concat(final_gdfs, ignore_index=True), crs=src.crs)
     final_gdf.to_file(output_shapefile)
+
+#this function takes a shapefile with polygons and removes the overlapping polygons, it also removes the multipolygons.
+#the functions tries to terminate the while loop earlier when there is no more overlap but sometimes it does not terminate and for that the counter
+#to end the loop after 10 iterations
 def crown_avoid(dir_out2):
     crown_avoidance= gpd.read_file(dir_out2)
     crown_avoidance['geometry'] = crown_avoidance.geometry.buffer(0)
@@ -280,247 +374,28 @@ def crown_avoid(dir_out2):
             print("Reached 10 iterations, terminating loop.")
             break
     return crown_avoidance
-  
-crownmaps_path = r"D:\crown_maps"
-local_aligment= r"D:\BCI_50ha_timeseries_local_alignment" 
+    
+def calculate_purple_score(masked_image, purple_colors):
+    # Convert masked image to RGB
+    rgb_image = masked_image.transpose((1, 2, 0))[:, :, 0:3]
+    total_pixels = np.prod(rgb_image.shape[:2])
+    black_pixels = np.sum(np.all(rgb_image == [0, 0, 0], axis=-1))
+    total_pixels = total_pixels - black_pixels
 
-list_orthomosaics=[os.path.join(local_aligment, f) for f in os.listdir(local_aligment) if f.endswith('.tif')]
-list_orthomosaics.sort()
+    # Create a mask for each unique purple color and combine them
+    purple_mask = np.zeros(rgb_image.shape[:2], dtype=bool)
+    for color in purple_colors:
+        color_mask = np.all(rgb_image == color, axis=-1)
+        purple_mask = np.logical_or(purple_mask, color_mask)
 
-reference_crownmap = gpd.read_file(os.path.join(crownmaps_path, "BCI_50ha_2020_08_01_crownmap_improved", "BCI_50ha_2020_08_01_crownmap_improved.shp"))
-reference_orthomosaic = list_orthomosaics[24]
-print("reference orthomosaic:", reference_orthomosaic)
+    # Calculate the purple score
+    purple_pixels = np.sum(purple_mask)
+    purple_score = (purple_pixels / total_pixels) * 100
 
+    print(f"Black pixels: {black_pixels}")
+    print(f"Purple pixels: {purple_pixels}")
+    print(f"Total pixels: {total_pixels}")
+    print(f"Purple score: {purple_score}%")
 
+    return purple_score,purple_pixels
 
-#plot both for visualization purposes
-with rasterio.open(reference_orthomosaic) as src:
-    orthomosaic = src.read()
-    p2, p98 = np.percentile(orthomosaic, (5, 95))
-    orthomosaic_stretched = exposure.rescale_intensity(orthomosaic, in_range=(p2, p98))
-    fig, ax = plt.subplots(figsize=(10, 10))
-    rasterio.plot.show(orthomosaic_stretched, transform=src.transform, ax=ax)
-    # Plot the geometries with no fill color
-    boundaries = gpd.GeoDataFrame(reference_crownmap['Mnemonic'], geometry=reference_crownmap.geometry.boundary)
-    boundaries.plot(ax=ax, column='Mnemonic', legend=False, cmap='inferno',linewidth=0.6)
-    shapefile.geometry.boundary.plot(ax=ax, color=None, edgecolor='k', linewidth=0.5)
-    # Plot the boundaries
-    plt.title('Reference Crown Map BCI 50ha 2020-08-01')
-    fig.savefig('vis/reference_crownmap.png', dpi=300, bbox_inches='tight')
-
-
-#summary of the crown map
-total_species= len(reference_crownmap['Mnemonic'].unique())
-total_tags= len(reference_crownmap['tag'].unique())
-total_area= reference_crownmap['geometry'].area.sum() #meter squared 
-total_area_50ha= shapefile['geometry'].area.sum()
-total_percentage= (total_area/total_area_50ha)*100
-reference_crownmap_summary = pd.DataFrame({'Total Species': int(total_species), 'Total Tags': int(total_tags),
-                                            'Mapped Area (m2)': round(total_area,0), 'Total Area 50ha (m2)': int(total_area_50ha)}, index=[0])
-df = reference_crownmap_summary.T
-fig, ax = plt.subplots(figsize=(5,5))
-ax.axis('off')
-# Adjust the layout
-fig.subplots_adjust(top=0.95, bottom=0.05, right=0.95, left=0.05)
-table = ax.table(cellText=df.values, colLabels=df.columns, rowLabels=df.index, cellLoc = 'center', loc='center')
-table.auto_set_font_size(False) 
-table.set_fontsize(10)
-fig.savefig('vis/reference2020summary.png', dpi=300, bbox_inches='tight')
-# Plot the highest abundance species
-species_abundance = reference_crownmap['Latin'].value_counts()
-species_abundance = species_abundance.nlargest(10).to_frame().reset_index()
-#plot table
-fig, ax = plt.subplots(figsize=(5,5))
-ax.axis('off')
-fig.subplots_adjust(top=0.95, bottom=0.05, right=0.95, left=0.05)
-table = ax.table(cellText=species_abundance.values, colLabels=species_abundance.columns, cellLoc = 'center', loc='center')
-table.auto_set_font_size(False)
-table.set_fontsize(10)
-fig.savefig('vis/reference2020speciesabundance.png', dpi=300, bbox_inches='tight')
-
-
-
-#lets plot the top species in the crown map 4 polygons with the higuest area, we can use rasterio to mask the orthomosaic and plot them in a 4x4 latyouts
-# Get the species with the second highest count
-second_species = reference_crownmap['Latin'].value_counts().nlargest(4).index[3]
-second_species_gdf = reference_crownmap[reference_crownmap['Latin'] == second_species]
-second_species_gdf = second_species_gdf.sort_values('crownArea', ascending=False).head(9)
-print(second_species_gdf["Latin"])
-
-fig, axs = plt.subplots(3, 3, figsize=(15, 10))
-for i, row in enumerate(second_species_gdf.itertuples()):
-     geom= row.geometry.bounds
-     bbox= box(geom[0]-3,geom[1]-3,geom[2]+3,geom[3]+3)
-     with rasterio.open(reference_orthomosaic) as src:
-        out_image, out_transform = rasterio.mask.mask(src, [bbox], crop=True)
-        out_meta = src.meta
-        xs, ys = row.geometry.exterior.xy
-        pixel_coords = [(x, y) * ~out_transform for x, y in zip(xs, ys)]
-        ax = axs[i // 3, i % 3]
-        ax.imshow(out_image.transpose(1, 2, 0)[:, :, :3])
-        ax.plot(*zip(*pixel_coords), color='red')
-plt.tight_layout(pad=0, w_pad=0, h_pad=0)
-plt.subplots_adjust(top=0.9)
-fig.suptitle(f'Top 9 instances of {second_species}', fontsize=16, y=0.95)
-plt.savefig(f'vis/{second_species}_9.png', bbox_inches='tight')
-plt.show()
-
-
-
-#read in the crown map 2020 
-crown2020_path=os.path.join(crownmaps_path, "BCI_50ha_2020_08_01_crownmap_improved", "BCI_50ha_2020_08_01_crownmap_improved.shp")
-crownmap_2020 = gpd.read_file(crown2020_path)
-
-#read in the local alignment orthomosaic
-orthomosaic_list = [os.path.join(local_aligment, f) for f in os.listdir(local_aligment) if f.endswith('.tif')]
-orthomosaic_list.sort()
-
-
-#align the previous date
-num=23
-tile_folder=os.path.join(local_aligment, "tiles",orthomosaic_list[num].split("\\")[2].replace("_local.tif","_tile"))
-if not os.path.exists(tile_folder):
-    os.makedirs(tile_folder)
-tile_ortho(orthomosaic_list[num],100,20,tile_folder)
-
-#vis the tiles and polygons
-list_tiles= [os.path.join(tile_folder, f) for f in os.listdir(tile_folder) if f.endswith('.tif')]
-
-with rasterio.open(list_tiles[10]) as src:
-    src_data = src.read()
-    bounds = src.bounds
-    src_transform = src.transform
-    main_box = box1(bounds[0],bounds[1],bounds[2],bounds[3])
-    mask = reference_crownmap['geometry'].within(main_box)
-    test_crowns = reference_crownmap.loc[mask]
-    fig, ax = plt.subplots()
-    show(src_data[:3,:,:], transform=src_transform,ax=ax)
-    test_crowns.plot(ax=plt.gca(), facecolor='none', edgecolor='red')
-    plt.show()
-    #save
-    fig.savefig('vis/tile10_crownmap.png', dpi=300, bbox_inches='tight')
-
-with rasterio.open(list_tiles[10]) as src:
-    src_data = src.read()
-    bounds = src.bounds
-    src_transform = src.transform
-    main_box = box1(bounds[0],bounds[1],bounds[2],bounds[3])
-    mask = crownmap_2020['geometry'].within(main_box)
-    test_crowns = crownmap_2020.loc[mask]
-
-    # Replace all geometries with their bounding boxes
-    test_crowns['geometry'] = test_crowns['geometry'].apply(lambda geom: box1(*geom.bounds))
-
-    fig, ax = plt.subplots()
-    show(src_data[:3,:,:], transform=src_transform,ax=ax)
-    test_crowns.plot(ax=plt.gca(), facecolor='none', edgecolor='red')
-    plt.show()
-
-    #save
-    fig.savefig('vis/tile10_crowmaop_boxes.png', dpi=300, bbox_inches='tight')
-
-
-src_data.shape
-out_shp_folder= os.path.join(r"D:\crown_maps\crown_segmentation",orthomosaic_list[num].split("\\")[2].replace("_local.tif","_segmented"))
-if not os.path.exists(out_shp_folder):
-    os.makedirs(out_shp_folder)
-output_shp= os.path.join(out_shp_folder,orthomosaic_list[num].split("\\")[2].replace("_local.tif","_segmented.shp"))
-crown_segment(tile_folder,crown2020_path,output_shp)
-
-
-
-for ortho in reversed(orthomosaic_list[:24]):
-     print(ortho)
-     if not os.path.exists(os.path.join(r"D:\BCI_50ha_timeseries_local_alignment\tiles","_".join(os.path.basename(ortho).split("_")[2:5]))):
-         os.makedirs(os.path.join(r"D:\BCI_50ha_timeseries_local_alignment\tiles", os.path.basename(ortho).replace(".tif","")))
-     tile_ortho(ortho,100,20,os.path.join(r"D:\BCI_50ha_timeseries_local_alignment\tiles","_".join(os.path.basename(ortho).split("_")[2:5])))
-     print("finish tiling orthomosaic")
-     input_orthomosaic= os.path.join(r"D:\BCI_50ha_timeseries_local_alignment\tiles","_".join(os.path.basename(ortho).split("_")[2:5]))
-     output_shp= os.path.join(r"D:\crown_maps\crown_segmentation", "_".join(os.path.basename(ortho).split("_")[2:5])+".shp")
-     crown_segment(input_orthomosaic,crown2020_path,output_shp)
-     print("finish instance segmentation")
-
-     crownmap=gpd.read_file(output_shp)
-     crownmap2020_tag = crownmap.sort_values('score', ascending=False)
-     crownmap2020_tag = crownmap.drop_duplicates('GlobalID', keep='first')
-
-     dir_out2= os.path.join(r"D:\crown_maps\crown_segmentation\2020_08_01", "_".join(os.path.basename(ortho).split("_")[2:5])+"_cleaned.shp")
-     crownmap2020_tag.to_file(dir_out2)
-     print("finish cleaning")
-        #run crown avoidance code
-     crown_avoided=crown_avoid(dir_out2)
-     dir_out3=dir_out2.replace("cleaned.shp","_avoided.shp")
-     crown_avoided.to_file(dir_out3)
-     print("finish crown avoidance")
-
-        #we merge the other fields from the original shapefile on global id
-     orig= gpd.read_file(crown2020_path)
-     improved= gpd.read_file(dir_out3)
-     orig=orig[['Mnemonic', 'Latin','CrownCondi', 'Illuminati', 'Lianas',  'Inclinatio', 
-            'Notes','stem_X', 'stem_Y',  'centroid_X',
-            'centroid_Y', 'stemDist','DBH', 'crownArea', 'GlobalID',
-            'Editor', 'EditDate','Person', 'FieldDate','Creator']]
-     final=improved.merge(orig, on='GlobalID', how='left')
-     final.to_file(dir_out3.replace("avoided.shp","improved.shp"))
-     print("finish merging fields")
-     crown2020_path=dir_out3.replace("avoided.shp","improved.shp")
-
-
-
-
-target_orthomosaic=[file for file in orthomosaic_list if '2020_06_15' in file]
-
-
-
-
-#crown predict the next previous date
-tile_folder=r"D:\BCI_50ha_timeseries_local_alignment\tiles\2020_06_15"
-if not os.path.exists(tile_folder):
-    os.makedirs(tile_folder)
-
-tile_ortho(target_orthomosaic[0],100,20,tile_folder)
-
-
-dir_out= os.path.join(r"D:\crown_maps\crown_segmentation\2020_06_15")
-if not os.path.exists(dir_out):
-    os.makedirs(dir_out)
-crown_segment(tile_folder,crown2020_path,dir_out)
-print("finish instance segmentation")
-
-
-crownmap=gpd.read_file(dir_out)
-crownmap2020_tag = crownmap.sort_values('score', ascending=False)
-crownmap2020_tag = crownmap.drop_duplicates('GlobalID', keep='first')
-dir_out2= os.path.join(r"D:\crown_maps\crown_segmentation\2020_06_15", "2020_06_15_cleaned.shp")
-crownmap2020_tag.to_file(dir_out2)
-
-#run crown avoidance code
-crown_avoided=crown_avoid(dir_out2)
-dir_out3=dir_out2.replace("cleaned.shp","_avoided.shp")
-crown_avoided.to_file(dir_out3)
-
-#we merge the other fields from the original shapefile on global id
-orig= gpd.read_file(crown2020_path)
-improved= gpd.read_file(dir_out3)
-orig=orig[['Mnemonic', 'Latin','CrownCondi', 'Illuminati', 'Lianas',  'Inclinatio', 
-       'Notes','stem_X', 'stem_Y',  'centroid_X',
-       'centroid_Y', 'stemDist','DBH', 'crownArea', 'GlobalID',
-       'Editor', 'EditDate','Person', 'FieldDate','Creator']]
-final=improved.merge(orig, on='GlobalID', how='left')
-final.to_file(dir_out3.replace("avoided.shp","improved.shp"))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#read in the local alignment orthomosaic
