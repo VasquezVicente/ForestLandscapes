@@ -24,32 +24,14 @@ from rasterio import windows
 from rasterio.plot import show
 from rasterio.merge import merge
 from datetime import datetime
-from IPython.display import clear_output
 from arosics import COREG, COREG_LOCAL
 from shapely.geometry import box as box1
-import os
-from labelbox import Client
-import labelbox
 from matplotlib import pyplot as plt
-from IPython.display import clear_output
 import numpy as np
 import json
 import ndjson
-import requests
 import cv2
-from typing import Dict, Any
-import os
-from labelbox import Client
-import labelbox
-from matplotlib import pyplot as plt
-from IPython.display import clear_output
-import numpy as np
-import json
-import ndjson
-import requests
-import cv2
-from typing import Dict, Any
-import matplotlib.animation as animation
+
 BCI_50ha_directory = os.getcwd()
 print(BCI_50ha_directory)
 
