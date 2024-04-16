@@ -120,16 +120,16 @@ def tile_ortho(sub, tile_size, buffer, output_folder):
                 dest.write(out_image)
     return gridInfo
 
-
+wd_path= r"/home/BCI_50ha"
 #50ha shapefile for boundaries
 #read the 50ha shape file and transform it to UTM 17N
-BCI_50ha_shapefile = os.path.join(BCI_50ha_directory,"aux_files", "BCI_Plot_50ha.shp")
+BCI_50ha_shapefile = os.path.join(wd_path,"aux_files", "BCI_Plot_50ha.shp")
 BCI_50ha = gpd.read_file(BCI_50ha_shapefile)
 BCI_50ha.to_crs(epsg=32617, inplace=True)
 BCI_50ha_buffer = box(BCI_50ha.bounds.minx-20, BCI_50ha.bounds.miny-20, BCI_50ha.bounds.maxx+20, BCI_50ha.bounds.maxy+20)  # Create a buffer around the plot
 
 #working directory
-wd_path= r"/home/BCI_50ha"
+
 path_orthomosaic = os.path.join(wd_path, "Orthophoto")
 path_DSM = os.path.join(wd_path, "DSM")
 path_output= os.path.join(wd_path, "Product")
