@@ -120,7 +120,7 @@ def tile_ortho(sub, tile_size, buffer, output_folder):
                 dest.write(out_image)
     return gridInfo
 
-wd_path= r"/home/BCI_50ha"
+wd_path= r"/home/vasquezv/BCI_50ha"
 #50ha shapefile for boundaries
 #read the 50ha shape file and transform it to UTM 17N
 BCI_50ha_shapefile = os.path.join(wd_path,"aux_files", "BCI_Plot_50ha.shp")
