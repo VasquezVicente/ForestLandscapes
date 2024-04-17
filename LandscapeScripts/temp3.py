@@ -188,7 +188,7 @@ for num in range(0,len(orthomosaics)):
 
 
 # Define the list of folders
-list_folder = [folder for folder in os.listdir(r"D:\BCI_50ha\tiles") if os.path.isdir(os.path.join(r"D:\BCI_50ha\tiles", folder))]
+list_folder = [folder for folder in os.listdir(tile_folder_base) if os.path.isdir(os.path.join(tile_folder_base, folder))]
 for index in range(0,50):
     print(f"Processing index {index}")
     til1 = None
@@ -197,10 +197,10 @@ for index in range(0,50):
         if til1 is not None:
             prev_til1 = til1
         if til1 is None:
-            til1 = os.path.join(r"D:\BCI_50ha\tiles", list_folder[i-1], f"{list_folder[i-1].replace('_orthomosaic','_tile')}_{index}.tif")
+            til1 = os.path.join(tile_folder_base, list_folder[i-1], f"{list_folder[i-1].replace('_orthomosaic','_tile')}_{index}.tif")
         else:
             til1 = os.path.join(base_output_path, list_folder[i-1],  f"{list_folder[i-1].replace('_orthomosaic','_tile')}_{index}.tif")
-        til2 = os.path.join(r"D:\BCI_50ha\tiles", list_folder[i],  f"{list_folder[i].replace('_orthomosaic','_tile')}_{index}.tif")
+        til2 = os.path.join(tile_folder_base, list_folder[i],  f"{list_folder[i].replace('_orthomosaic','_tile')}_{index}.tif")
         output_path = os.path.join(base_output_path, list_folder[i])
         if not os.path.exists(output_path):
             os.makedirs(output_path)
