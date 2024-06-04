@@ -52,7 +52,7 @@ for product in product_list:
 #GLOBAL ALIGNMENT
 reference1= os.path.join(cropped_path, ortho_list[69])
 print("the referece is", reference1)
-shutil.copy(os.path.join(cropped_path, ortho_list[69]),os.path.join(wd_path,"Product_global", ortho_list[69]).replace("orthomosaic.tif","aligned_global.tif"))
+shutil.copy(reference1,os.path.join(wd_path,"Product_global", ortho_list[69]).replace("orthomosaic.tif","aligned_global.tif"))
 successful_alignments = [file for file in os.listdir(os.path.join(wd_path, "Product_global")) if file.endswith(".tif")]
 for orthomosaic in ortho_list[68::-1]:
     print(orthomosaic)
@@ -121,3 +121,73 @@ for orthomosaic in ortho_list[70:]:
             except:
                 print("Global alignment failed, retrying with the previous successful alignment")
                 reference1 = os.path.join(wd_path,"Product_global",successful_alignments.pop()) # Use the last successful alignment as reference
+
+#LOCAL ALIGNMENT
+from tqdm import tqdm
+
+#LOCAL ALIGNMENT
+global_path=os.path.join(wd_path,"Product_global")
+ortho_list= [file for file in os.listdir(global_path) if file.endswith(".tif")]
+reference1= os.path.join(global_path, ortho_list[69])
+local_path= os.path.join(wd_path,"Product_local")
+shutil.copy(reference1,reference1.replace("Product_global","Product_local").replace("aligned_global.tif","aligned_local.tif"))
+
+# Create a progress bar
+pbar = tqdm(total=len(ortho_list), desc="Processing", ncols=100)
+
+for orthomosaic in ortho_list[68::-1]:
+    target= os.path.join(global_path, orthomosaic)
+    out_path= target.replace("Product_global","Product_local").replace("aligned_global.tif","aligned_local.tif")
+    if os.path.exists(out_path):
+            print(f"Local alignment for {orthomosaic} already processed. Skipping...")
+            pbar.update(1)
+            continue
+    kwargs = {          'grid_res': 200,
+                        'window_size': (512, 512),
+                        'path_out': out_path,
+                        'fmt_out': 'GTIFF',
+                        'q': False,
+                        'min_reliability': 30,
+                        'r_b4match': 2,
+                        's_b4match': 2,
+                        'max_shift': 100,
+                        'nodata':(0, 0),
+                        'match_gsd':False,
+                    }
+    CRL = COREG_LOCAL(reference1, target, **kwargs)
+    CRL.calculate_spatial_shifts()
+    CRL.correct_shifts()
+    CRL.CoRegPoints_table.to_csv(out_path.replace("aligned_local.tif","aligned.csv"))
+    reference1= out_path
+    pbar.update(1)
+
+ortho_list= [file for file in os.listdir(global_path) if file.endswith(".tif")]
+reference1= os.path.join(global_path, ortho_list[69])
+
+for orthomosaic in ortho_list[70:]:
+    target= os.path.join(global_path, orthomosaic)
+    out_path= target.replace("Product_global","Product_local").replace("aligned_global.tif","aligned_local.tif")
+    if os.path.exists(out_path):
+            print(f"Local alignment for {orthomosaic} already processed. Skipping...")
+            pbar.update(1)
+            continue
+    kwargs = {          'grid_res': 200,
+                        'window_size': (512, 512),
+                        'path_out': out_path,
+                        'fmt_out': 'GTIFF',
+                        'q': False,
+                        'min_reliability': 30,
+                        'r_b4match': 2,
+                        's_b4match': 2,
+                        'max_shift': 100,
+                        'nodata':(0, 0),
+                        'match_gsd':False,
+                    }
+    CRL = COREG_LOCAL(reference1, target, **kwargs)
+    CRL.calculate_spatial_shifts()
+    CRL.correct_shifts()
+    CRL.CoRegPoints_table.to_csv(out_path.replace("aligned_local.tif","aligned.csv"))
+    reference1= out_path
+    pbar.update(1)
+
+pbar.close()
