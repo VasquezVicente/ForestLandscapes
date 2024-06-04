@@ -128,6 +128,7 @@ from tqdm import tqdm
 #LOCAL ALIGNMENT
 global_path=os.path.join(wd_path,"Product_global")
 ortho_list= [file for file in os.listdir(global_path) if file.endswith(".tif")]
+ortho_list= sorted(ortho_list)
 reference1= os.path.join(global_path, ortho_list[69])
 print("the referece is", reference1)
 local_path= os.path.join(wd_path,"Product_local")
@@ -164,6 +165,7 @@ for orthomosaic in ortho_list[68::-1]:
     pbar.update(1)
 
 ortho_list= [file for file in os.listdir(global_path) if file.endswith(".tif")]
+ortho_list= sorted(ortho_list)
 reference1= os.path.join(global_path, ortho_list[69])
 
 for orthomosaic in ortho_list[70:]:
