@@ -129,6 +129,7 @@ from tqdm import tqdm
 global_path=os.path.join(wd_path,"Product_global")
 ortho_list= [file for file in os.listdir(global_path) if file.endswith(".tif")]
 reference1= os.path.join(global_path, ortho_list[69])
+print("the referece is", reference1)
 local_path= os.path.join(wd_path,"Product_local")
 shutil.copy(reference1,reference1.replace("Product_global","Product_local").replace("aligned_global.tif","aligned_local.tif"))
 
@@ -137,6 +138,7 @@ pbar = tqdm(total=len(ortho_list), desc="Processing", ncols=100)
 
 for orthomosaic in ortho_list[68::-1]:
     target= os.path.join(global_path, orthomosaic)
+    print("the target is", target)
     out_path= target.replace("Product_global","Product_local").replace("aligned_global.tif","aligned_local.tif")
     if os.path.exists(out_path):
             print(f"Local alignment for {orthomosaic} already processed. Skipping...")
