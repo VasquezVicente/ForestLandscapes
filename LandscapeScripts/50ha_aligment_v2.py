@@ -49,3 +49,75 @@ for product in product_list:
     else:
         print(f"Skipping {product} because it already exists")
 
+#GLOBAL ALIGNMENT
+reference1= os.path.join(cropped_path, ortho_list[69])
+print("the referece is", reference1)
+shutil.copy(os.path.join(cropped_path, ortho_list[69]),os.path.join(wd_path,"Product_global", ortho_list[69]).replace("orthomosaic.tif","aligned_global.tif"))
+successful_alignments = [file for file in os.listdir(os.path.join(wd_path, "Product_global")) if file.endswith(".tif")]
+for orthomosaic in ortho_list[68::-1]:
+    print(orthomosaic)
+    if orthomosaic != ortho_list[69]:
+        target = os.path.join(cropped_path, orthomosaic)
+        global_path = target.replace("orthomosaic.tif","aligned_global.tif").replace("Product_cropped","Product_global")
+        # Check if the file already exists in the Product_global directory
+        if os.path.exists(global_path):
+            print(f"Global alignment for {orthomosaic} already processed. Skipping...")
+            continue
+        kwargs2 = { 'path_out': global_path,
+                    'fmt_out': 'GTIFF',
+                    'r_b4match': 2,
+                    's_b4match': 2,
+                    'max_shift': 200,
+                    'max_iter': 20,
+                    'align_grids':True,
+                    'match_gsd': True,
+                    'binary_ws': False
+                }
+        alignment_successful = False
+        while not alignment_successful and successful_alignments:
+            try:
+                CR= COREG(reference1, target, **kwargs2,ws=(2048,2048))
+                CR.calculate_spatial_shifts()
+                CR.correct_shifts()
+                print("Global alignment successful")
+                successful_alignments.append(global_path) # Add successful alignment to the list
+                alignment_successful = True
+            except:
+                print("Global alignment failed, retrying with the previous successful alignment")
+                reference1 = os.path.join(wd_path,"Product_global",successful_alignments.pop()) # Use the last successful alignment as reference
+
+reference1= os.path.join(cropped_path, ortho_list[69])
+successful_alignments = [reference1]
+for orthomosaic in ortho_list[70:]:
+    print(orthomosaic)
+    if orthomosaic != ortho_list[69]:
+        target = os.path.join(cropped_path, orthomosaic)
+        global_path = target.replace("orthomosaic.tif","aligned_global.tif").replace("Product_cropped","Product_global")
+        
+        # Check if the file already exists in the Product_global directory
+        if os.path.exists(global_path):
+            print(f"Global alignment for {orthomosaic} already processed. Skipping...")
+            continue
+
+        kwargs2 = { 'path_out': global_path,
+                'fmt_out': 'GTIFF',
+                'r_b4match': 2,
+                's_b4match': 2,
+                'max_shift': 200,
+                'max_iter': 20,
+                'align_grids':True,
+                'match_gsd': True,
+                'binary_ws': False
+            }
+        alignment_successful = False
+        while not alignment_successful and successful_alignments:
+            try:
+                CR= COREG(reference1, target, **kwargs2,ws=(2048,2048))
+                CR.calculate_spatial_shifts()
+                CR.correct_shifts()
+                print("Global alignment successful")
+                successful_alignments.append(global_path) # Add successful alignment to the list
+                alignment_successful = True
+            except:
+                print("Global alignment failed, retrying with the previous successful alignment")
+                reference1 = os.path.join(wd_path,"Product_global",successful_alignments.pop()) # Use the last successful alignment as reference
