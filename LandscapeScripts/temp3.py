@@ -4,13 +4,13 @@ import copy
 import shutil
 import numpy as np
 import pandas as pd
+from shapely.ops import transform
 import geopandas as gpd
 import rasterio
 import matplotlib.pyplot as plt
 import cv2
 from skimage import exposure
 from skimage.transform import rescale
-from scipy.ndimage import zoom
 from shapely.geometry import Polygon, MultiPolygon, box, shape
 from matplotlib.patches import Rectangle
 from segment_anything import SamPredictor, sam_model_registry
@@ -22,15 +22,28 @@ from rasterio.warp import reproject, Resampling, calculate_default_transform
 from rasterio.mask import mask
 from rasterio import windows
 from rasterio.plot import show
+i
 from rasterio.merge import merge
 from datetime import datetime
 from arosics import COREG, COREG_LOCAL
+from arosics import COREG_LOCAL
 from shapely.geometry import box as box1
 from matplotlib import pyplot as plt
 import numpy as np
 import json
 import ndjson
 import cv2
+import shapely
+#!/usr/bin/env python
+import os
+import yaml
+import click
+import shutil
+from glob import glob
+from ffmpeg import FFmpeg
+from datetime import datetime
+from PIL import Image, ImageDraw
+from tempfile import TemporaryDirectory
 
 BCI_50ha_directory = os.getcwd()
 print(BCI_50ha_directory)
@@ -119,8 +132,69 @@ def tile_ortho(sub, tile_size, buffer, output_folder):
             with rasterio.open(filename, "w", **out_meta) as dest:
                 dest.write(out_image)
     return gridInfo
+def transform_geometry(geom, transform):
+    x_min, y_min = transform * (0, 0)
+    xres, yres = transform[0], transform[4]
+    return shapely.ops.transform(lambda x, y: ((x - x_min) / xres, (y - y_min) / yres), geom)
+def parse_info(filename):
+    parts = os.path.splitext(filename)[0].split('_')
+    return {
+        'genus': parts[0],
+        'species': parts[1],
+        'crown_id': int(parts[2]),
+        'date': datetime(*map(int, parts[-3:])),
+    }
+def reformat_image(inputfile, config, outputdir):
+    video_size = config['video_size']
+    date_fmt = config.get('date_format', None)
+    species_fmt = config.get('species_format', None)
+    padding = config['padding']
+    left, right, top, bottom = (
+        padding.get(side, 0)
+        for side in ('left', 'right', 'top', 'bottom')
+    )
+
+    base = os.path.basename(inputfile)
+    info = parse_info(base)
+    outputfile = os.path.join(outputdir, base)
+
+    total_size = (
+        video_size[0] + left + right,
+        video_size[1] + top + bottom
+    )
+
+    out = Image.new('RGB', total_size)
+
+    # Draw original image
+    with Image.open(inputfile) as im:
+        w, h = im.size
+        xoff = ((video_size[0] - w) // 2) + left
+        yoff = ((video_size[1] - h) // 2) + top
+        out.paste(im, (xoff, yoff))
+
+    if date_fmt is not None:
+        datestr = info['date'].strftime(date_fmt['format'])
+        draw = ImageDraw.Draw(out)
+        draw.text(
+            date_fmt['xy'],
+            datestr,
+            **date_fmt.get('draw_kwargs', {})
+        )
+
+    if species_fmt is not None:
+        specstr = species_fmt['format'].format(**info)
+        draw = ImageDraw.Draw(out)
+        draw.text(
+            species_fmt['xy'],
+            specstr,
+            **species_fmt.get('draw_kwargs', {})
+        )
+
+    out.save(outputfile)
+    return outputfile
 
 wd_path= r"/home/vasquezv/BCI_50ha"
+wd_path= r"D:\BCI_50ha"
 #50ha shapefile for boundaries
 #read the 50ha shape file and transform it to UTM 17N
 BCI_50ha_shapefile = os.path.join(wd_path,"aux_files", "BCI_Plot_50ha.shp")
@@ -135,7 +209,8 @@ path_DSM = os.path.join(wd_path, "DSM")
 path_output= os.path.join(wd_path, "Product")
 path_cropped= os.path.join(wd_path, "Product_cropped")
 tile_folder_base= os.path.join(wd_path, "tiles")
-base_output_path = os.path.join(wd_path, "output")
+base_output_path = os.path.join(wd_path, "output")    
+crownmap_out_folder=os.path.join(wd_path, "crownmap_out")
 if not os.path.exists(path_orthomosaic):   
     os.makedirs(path_orthomosaic)
 if not os.path.exists(path_DSM):
@@ -148,6 +223,8 @@ if not os.path.exists(tile_folder_base):
     os.makedirs(tile_folder_base)
 if not os.path.exists(base_output_path):
     os.makedirs(base_output_path)
+if not os.path.exists(crownmap_out_folder):
+    os.makedirs(crownmap_out_folder)
 
 #COMBINE DSM AND ORTHOPHOTO
 orthomosaics = [filename for filename in os.listdir(path_orthomosaic) if filename.endswith('.tif')]
@@ -168,6 +245,41 @@ for i in range(0, len(orthomosaics)):
         print(f"Combined {orthomosaics[i]} and {DSMs[i]}")
     else:
         print(f"File {orthomosaics[i]} already exists")
+
+
+#after cropping we need to globally coregister all orthomosaics to increment precision of the local coregistration
+#here the cropped BCI_50ha_2023_05_23 is the reference orthomosaic for the global coregistration
+folder_global= os.path.join(wd_path, "global_coreg")
+if not os.path.exists(folder_global):
+    os.makedirs(folder_global)
+targets= [filename for filename in os.listdir(path_cropped) if filename.endswith('.tif')]
+reference_orthomosaic=r"D:\BCI_50ha\Product_cropped\BCI_50ha_2023_05_23_orthomosaic.tif"
+print("starting the global correction of the first orthomosaic")
+
+
+
+for tar in targets:
+    output_path2=os.path.join(folder_global,tar.replace("orthomosaic.tif","aligned_global.tif"))
+    print(output_path2)
+    target= os.path.join(path_cropped, tar)
+    try:
+            kwargs2 = {
+                'path_out': output_path2,
+                'fmt_out': 'GTIFF',
+                'r_b4match': 2,
+                's_b4match': 2,
+                'max_shift': 200,
+                'max_iter': 20,
+                'align_grids':True,
+                'match_gsd': False,
+            }
+            CR = COREG(reference_orthomosaic, target, **kwargs2)
+            CR.calculate_spatial_shifts()
+            CR.correct_shifts()
+            continue  # Exit the loop if no RuntimeError
+    except RuntimeError as e:
+            print(f"Error processing {target}: {e}")
+            continue  # Go to the next iteration if RuntimeError
 
 
 
@@ -237,4 +349,227 @@ for index in range(0,50):
                     CRL.correct_shifts()
                 except Exception as e:
                     print(f"Error: {e}. Failed to align til2 to the previous til1.")
+
+
+#lets fucking segment
+MODEL_TYPE = "vit_h"
+checkpoint = r"C:\Users\VasquezV\repo\crown-segment\models\sam_vit_h_4b8939.pth"
+device = 'cuda'
+sam = sam_model_registry[MODEL_TYPE](checkpoint=checkpoint)
+#sam.to(device=device)  #requires cuda cores
+mask_predictor = SamPredictor(sam)
+
+
+#segment tile timeseries
+def crown_segment2(tile_path,shp,output_shapefile):
+        with rasterio.open(tile_path) as src:
+            data=src.read()
+            transposed_data=data.transpose(1,2,0)
+            crs=src.crs
+            affine_transform = src.transform 
+            bounds=src.bounds
+            main_box= box1(bounds[0],bounds[1],bounds[2],bounds[3])
+        crowns=gpd.read_file(shp)
+        crowns= crowns.to_crs(crs)
+        mask = crowns['geometry'].within(main_box)
+        test_crowns = crowns.loc[mask]
+
+        print("starting box transformation from utm to xy")
+        boxes=[]
+        for index, row in test_crowns.iterrows():
+            if isinstance(row.geometry, MultiPolygon):
+                multi_polygon = row.geometry
+                polygons = []
+                for polygon in multi_polygon.geoms:
+                    polygons.append(polygon)
+                largest_polygon = max(polygons, key=lambda polygon: polygon.area)
+                bounds = largest_polygon.bounds
+                boxes.append(bounds)
+                print("found one multipolygon for tag", row['tag'])
+            else:
+                bounds = row.geometry.bounds
+                boxes.append(bounds)
+
+        box_mod=[]
+        for box in boxes:
+            xmin, ymin, xmax, ymax = box
+            x_pixel_min, y_pixel_min = ~affine_transform * (xmin, ymin)
+            x_pixel_max, y_pixel_max = ~affine_transform * (xmax, ymax)
+            trans_box=[x_pixel_min,y_pixel_max,x_pixel_max,y_pixel_min]
+            box_mod.append(trans_box)
+        print("The tile contains", len(box_mod), "polygons")
+        input_boxes=torch.tensor(box_mod, device=mask_predictor.device)
+        transformed_boxes = mask_predictor.transform.apply_boxes_torch(input_boxes, transposed_data[:,:,:3].shape[:2])
+        print("about to set the image")
+        mask_predictor.set_image(transposed_data[:,:,:3])
+        masks, scores, logits= mask_predictor.predict_torch(point_coords=None,
+            point_labels=None,boxes=transformed_boxes, multimask_output=True,)
+        
+        print("finish predicting now getting the utms for transformation")
+        height, width, num_bands = transposed_data.shape
+        utm_coordinates_and_values = np.empty((height, width, num_bands + 2))
+        utm_transform = src.transform
+       
+        y_coords, x_coords = np.meshgrid(np.arange(height), np.arange(width), indexing='ij')
+        utm_x, utm_y = rasterio.transform.xy(utm_transform, y_coords, x_coords)
+        utm_coordinates_and_values[..., 0] = utm_x
+        utm_coordinates_and_values[..., 1] = utm_y
+        utm_coordinates_and_values[..., 2:] = transposed_data[..., :num_bands]
+
+        all_polygons=[]
+        for idx, (thisscore, thiscrown) in enumerate(zip(scores, masks)):
+            maxidx=thisscore.tolist().index(max(thisscore.tolist()))
+            thiscrown = thiscrown[maxidx]
+            score=scores[1].tolist()[thisscore.tolist().index(max(thisscore.tolist()))]   
+            mask = thiscrown.squeeze()
+            utm_coordinates = utm_coordinates_and_values[:, :, :2]
+            mask_np = mask.cpu().numpy().astype(np.uint8)
+            contours, _ = cv2.findContours(mask_np, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            polygons = []
+            areas = []
+            for contour in contours:
+                contour_coords = contour.squeeze().reshape(-1, 2)
+                contour_utm_coords = utm_coordinates[contour_coords[:, 1], contour_coords[:, 0]]
+                if len(contour_utm_coords) >= 3:
+                    polygon = Polygon(contour_utm_coords)
+                    area = polygon.area
+                    polygons.append(polygon)
+                    areas.append(area)       
+            if len(areas) == 0:
+                print(f"No valid areas found for this crown. Skipping.")
+                continue  
+            largest_index = np.argmax(areas)
+            gdf = gpd.GeoDataFrame(geometry=[polygons[largest_index]])
+            gdf['area'] = areas[largest_index]
+            gdf['score'] = score 
+            gdf.crs = src.crs
+            tag_value = test_crowns.iloc[idx]['tag']
+            global_id= test_crowns.iloc[idx]['GlobalID']
+            gdf['tag']=tag_value
+            gdf['GlobalID']=global_id
+            all_polygons.append(gdf)
+        print(len(all_polygons),"crowns segmented")
+        final_gdf = gpd.GeoDataFrame(pd.concat(all_polygons, ignore_index=True), crs=src.crs)
+        final_gdf.to_file(output_shapefile)
+
+indexes=[16]
+for index in indexes:
+    shp=os.path.join(r"D:\BCI_50ha\crownmap\BCI_50ha_2020_08_01_crownmap",f"tile_{index}_crownmap.shp")
+    list_folder = [folder for folder in os.listdir(base_output_path) if os.path.isdir(os.path.join(base_output_path, folder))]
+    for folder in list_folder:
+        path_desieredindex= os.path.join(base_output_path, folder, f"{folder.replace('_orthomosaic','_tile')}_{index}.tif")
+        output_path= os.path.join(crownmap_out_folder, f"{folder.replace('_orthomosaic','_tile')}_{index}.shp")
+        crown_segment2(tile_path=path_desieredindex,shp=shp,output_shapefile=output_path)
+
+indexes=[16]
+for index in indexes:
+    shp=os.path.join(r"D:\BCI_50ha\crownmap\BCI_50ha_2020_08_01_crownmap",f"tile_{index}_crownmap.shp")
+    list_folder = [folder for folder in os.listdir(base_output_path) if os.path.isdir(os.path.join(base_output_path, folder))]
+    for folder in list_folder[23::-1]:
+        print(folder)
+        path_desieredindex= os.path.join(base_output_path, folder, f"{folder.replace('_orthomosaic','_tile')}_{index}.tif")
+        output_path= os.path.join(crownmap_out_folder, f"{folder.replace('_orthomosaic','_tile')}_{index}.shp")
+        crown_segment2(tile_path=path_desieredindex,shp=shp,output_shapefile=output_path)
+        shp=output_path
+    for folder in list_folder[25:]:
+        print(folder)
+        path_desieredindex= os.path.join(base_output_path, folder, f"{folder.replace('_orthomosaic','_tile')}_{index}.tif")
+        output_path= os.path.join(crownmap_out_folder, f"{folder.replace('_orthomosaic','_tile')}_{index}.shp")
+        crown_segment2(tile_path=path_desieredindex,shp=shp,output_shapefile=output_path)
+        shp=output_path
+
+index=16
+shp=os.path.join(r"D:\BCI_50ha\crownmap\BCI_50ha_2020_08_01_crownmap",f"tile_{index}_crownmap.shp")
+shpprj= os.path.join(r"D:\BCI_50ha\crownmap\BCI_50ha_2020_08_01_crownmap",f"tile_{index}_crownmap.prj")
+shpcpg= os.path.join(r"D:\BCI_50ha\crownmap\BCI_50ha_2020_08_01_crownmap",f"tile_{index}_crownmap.cpg")
+shpshx= os.path.join(r"D:\BCI_50ha\crownmap\BCI_50ha_2020_08_01_crownmap",f"tile_{index}_crownmap.shx")
+shpdbj= os.path.join(r"D:\BCI_50ha\crownmap\BCI_50ha_2020_08_01_crownmap",f"tile_{index}_crownmap.dbf")
+
+shutil.copy(shp, os.path.join(crownmap_out_folder, f"BCI_50ha_2020_08_01_tile_{index}.shp"))
+shutil.copy(shpprj, os.path.join(crownmap_out_folder, f"BCI_50ha_2020_08_01_tile_{index}.prj"))
+shutil.copy(shpcpg, os.path.join(crownmap_out_folder, f"BCI_50ha_2020_08_01_tile_{index}.cpg"))
+shutil.copy(shpshx, os.path.join(crownmap_out_folder, f"BCI_50ha_2020_08_01_tile_{index}.shx"))
+shutil.copy(shpdbj, os.path.join(crownmap_out_folder, f"BCI_50ha_2020_08_01_tile_{index}.dbf"))
+
+file= gpd.read_file(os.path.join(crownmap_out_folder, f"BCI_50ha_2020_08_01_tile_{index}.shp"))
+file= file[['area', 'score', 'tag', 'GlobalID', 'geometry']]
+file.to_file(os.path.join(crownmap_out_folder, f"BCI_50ha_2020_08_01_tile_{index}.shp"))
+
+#create gdf of that tile and that crown
+#list all shps that end with tile_18.shp
+indexes=[16]
+for index in indexes:
+    print(f"Processing index {index}")
+    segmented_crowns_18= [filename for filename in os.listdir(crownmap_out_folder) if filename.endswith(f'tile_{index}.shp')]
+    all_gdf=[]
+    for date_18 in range(0,len(segmented_crowns_18)):
+        path= os.path.join(crownmap_out_folder, segmented_crowns_18[date_18])
+        gdf= gpd.read_file(path)
+        gdf = gdf.to_crs("EPSG:32617")  # Set a common CRS
+        date = '_'.join(segmented_crowns_18[date_18].split('_')[2:5])
+        tile= os.path.join(base_output_path, f"BCI_50ha_{date}_orthomosaic", f"BCI_50ha_{date}_tile_{index}.tif")
+        gdf['date']=date
+        gdf['tile']=tile
+        gdf= gdf[['area', 'score', 'date','tile','tag', 'GlobalID', 'geometry']]
+        all_gdf.append(gdf)
+
+    all= pd.concat(all_gdf, ignore_index=True)
+    all['tag'] = all['tag'].astype(str)
+
+    reference_gdf= gpd.read_file(r"D:\BCI_50ha\crownmap_datapub\BCI_50ha_2020_08_01_crownmap_raw\Crowns_2020_08_01_MergedWithPlotData.shp")
+    reference_gdf=reference_gdf.rename(columns={"Tag":"tag"})
+    reference_gdf["tag"] = reference_gdf["tag"].astype(str)
+    
+    merged_gdf = all.merge(reference_gdf[["tag","Latin"]], on='tag', how='left')
+
+
+
+    merged_gdf['outlier'] = merged_gdf.groupby('tag')['area'].transform(lambda x: np.abs(x - x.mean()) > 2 * x.std())
+    merged_gdf.to_file(f"D:\BCI_50ha\crownmap\crownmap_{index}.shp")
+
+    unique_tags = merged_gdf['tag'].unique()
+
+    for tag in unique_tags:
+        thistree = merged_gdf[merged_gdf['tag'] == str(tag)]
+        subset2 = thistree[thistree['date'] == '2020_08_01']
+        subset2_geom = subset2.iloc[0]['geometry']
+        main_box = box1(subset2.total_bounds[0] - 5, subset2.total_bounds[1] - 5, subset2.total_bounds[2] + 5, subset2.total_bounds[3] + 5)
+        for i in range(0, len(thistree)):
+            crown_sp1 = thistree.iloc[i]['Latin'].split(" ")[0]
+            crown_sp2 = thistree.iloc[i]['Latin'].split(" ")[1]
+            tag = thistree.iloc[i]['tag']
+            date = thistree.iloc[i]['date']
+            outlier = thistree.iloc[i]['outlier']  # Check for outlier
+            folder_out_crown= os.path.join(wd_path, "crown_segmentation", f"tile_{index}")
+            if not os.path.exists(folder_out_crown):
+                os.makedirs(folder_out_crown)
+            aux_folder=output_path = os.path.join(folder_out_crown,f"{crown_sp1}_{crown_sp2}_{tag}")
+            if not os.path.exists(aux_folder):
+                os.makedirs(aux_folder)
+            output_path = os.path.join(folder_out_crown,f"{crown_sp1}_{crown_sp2}_{tag}",f"{crown_sp1}_{crown_sp2}_{tag}_{date}.png")
+            geom = thistree.iloc[i]['geometry']
+            
+            # Choose which geometry to use based on the outlier flag
+            if outlier==True:
+                geom = subset2_geom
+                print(f"Outlier detected for crown {tag} in date {date}. Using the geometry from 2020-08-01.")
+            
+            
+            with rasterio.open(thistree.iloc[i]['tile']) as src:
+                out_image, out_transform = rasterio.mask.mask(src, [main_box], crop=True)
+                out_meta = src.meta.copy()
+                x_min, y_min = out_transform * (0, 0)
+                xres, yres = out_transform[0], out_transform[4]
+                transformed_geom = transform(lambda x, y: ((x - x_min) / xres, (y - y_min) / yres), geom)
+                fig, ax = plt.subplots(figsize=(10, 10))
+                ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
+                ax.plot(*transformed_geom.exterior.xy, color='red')
+                for interior in transformed_geom.interiors:
+                    ax.plot(*interior.xy, color='red')
+                ax.axis('off')
+                fig.savefig(output_path, bbox_inches='tight', pad_inches=0)
+                plt.close(fig)
+
+
+
 

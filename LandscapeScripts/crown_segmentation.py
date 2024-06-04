@@ -187,7 +187,79 @@ def crown_segment(tile_folder,shp,output_shapefile):
         final_gdfs.append(combined_gdf)
     final_gdf = gpd.GeoDataFrame(pd.concat(final_gdfs, ignore_index=True), crs=src.crs)
     final_gdf.to_file(output_shapefile)
+def crown_segment2(tile_path,shp,output_shapefile):
+        with rasterio.open(tile_path) as src:
+            data=src.read()
+            transposed_data=data.transpose(1,2,0)
+            crs=src.crs
+            affine_transform = src.transform 
+            bounds=src.bounds
+            main_box= box1(bounds[0],bounds[1],bounds[2],bounds[3])
+        crowns=gpd.read_file(shp)
+        crowns= crowns.to_crs(crs)
+        mask = crowns['geometry'].within(main_box)
+        test_crowns = crowns.loc[mask]
+        box_mod=[]
+        print("starting box transformation from utm to xy")
+        boxes=[]
+        for box in boxes:
+            xmin, ymin, xmax, ymax = box
+            x_pixel_min, y_pixel_min = ~affine_transform * (xmin, ymin)
+            x_pixel_max, y_pixel_max = ~affine_transform * (xmax, ymax)
+            trans_box=[x_pixel_min,y_pixel_max,x_pixel_max,y_pixel_min]
+            box_mod.append(trans_box)
+        print("The tile contains", len(box_mod), "polygons")
+        input_boxes=torch.tensor(box_mod, device=mask_predictor.device)
+        transformed_boxes = mask_predictor.transform.apply_boxes_torch(input_boxes, transposed_data[:,:,:3].shape[:2])
+        print("about to set the image")
+        mask_predictor.set_image(transposed_data[:,:,:3])
+        masks, scores, logits= mask_predictor.predict_torch(point_coords=None,
+            point_labels=None,boxes=transformed_boxes, multimask_output=True,)
+        
+        print("finish predicting now getting the utms for transformation")
+        height, width, num_bands = transposed_data.shape
+        utm_coordinates_and_values = np.empty((height, width, num_bands + 2))
+        utm_transform = src.transform
+       
+        y_coords, x_coords = np.meshgrid(np.arange(height), np.arange(width), indexing='ij')
+        utm_x, utm_y = rasterio.transform.xy(utm_transform, y_coords, x_coords)
+        utm_coordinates_and_values[..., 0] = utm_x
+        utm_coordinates_and_values[..., 1] = utm_y
+        utm_coordinates_and_values[..., 2:] = transposed_data[..., :num_bands]
 
+        all_polygons=[]
+        for idx, (thisscore, thiscrown) in enumerate(zip(scores, masks)):
+            maxidx=thisscore.tolist().index(max(thisscore.tolist()))
+            thiscrown = thiscrown[maxidx]
+            score=scores[1].tolist()[thisscore.tolist().index(max(thisscore.tolist()))]   
+            mask = thiscrown.squeeze()
+            utm_coordinates = utm_coordinates_and_values[:, :, :2]
+            mask_np = mask.cpu().numpy().astype(np.uint8)
+            contours, _ = cv2.findContours(mask_np, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            polygons = []
+            areas = []
+            for contour in contours:
+                contour_coords = contour.squeeze().reshape(-1, 2)
+                contour_utm_coords = utm_coordinates[contour_coords[:, 1], contour_coords[:, 0]]
+                if len(contour_utm_coords) >= 3:
+                    polygon = Polygon(contour_utm_coords)
+                    area = polygon.area
+                    polygons.append(polygon)
+                    areas.append(area)       
+            if len(areas) == 0:
+                print(f"No valid areas found for this crown. Skipping.")
+                continue  
+            largest_index = np.argmax(areas)
+            gdf = gpd.GeoDataFrame(geometry=[polygons[largest_index]])
+            gdf['area'] = areas[largest_index]
+            gdf['score'] = score 
+            gdf.crs = src.crs
+            tag_value = test_crowns.iloc[idx]['tag']
+            global_id= test_crowns.iloc[idx]['GlobalID']
+            gdf['tag']=tag_value
+            gdf['GlobalID']=global_id
+            all_polygons.append(gdf)
+        print("finish segmenting tile")
 #this function takes a shapefile with polygons and removes the overlapping polygons, it also removes the multipolygons.
 #the functions tries to terminate the while loop earlier when there is no more overlap but sometimes it does not terminate and for that the counter
 #to end the loop after 10 iterations

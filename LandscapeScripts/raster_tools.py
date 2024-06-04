@@ -5,17 +5,12 @@ import numpy as np
 from rasterio.warp import reproject, Resampling
 import geopandas as gpd
 from rasterio.mask import mask
-import matplotlib.pyplot as plt
-import matplotlib.pyplot as plt
 import os
 import pandas as pd
-import rasterio
 import cv2
-import numpy as np
 import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.geometry import box as box1
-from matplotlib.patches import Rectangle
 import time 
 #AI
 from segment_anything import SamPredictor
@@ -30,7 +25,43 @@ from rasterio.mask import mask
 from rasterio.features import geometry_mask
 from rasterio import windows
 from rasterio.plot import show
-
+#tile ortho function
+def tile_ortho(sub, tile_size, buffer, output_folder):
+    with rasterio.open(sub) as src:
+        bounds = src.bounds
+        xmin, ymin, xmax, ymax = bounds
+        if tile_size <= 0:
+            raise ValueError("tile_size must be greater than zero.")      
+        x_range = xmax - xmin
+        y_range = ymax - ymin
+        x_tiles = int(np.ceil(x_range / tile_size))
+        y_tiles = int(np.ceil(y_range / tile_size))
+        x_residual = x_range % tile_size
+        y_residual = y_range % tile_size
+        if x_residual > 0:
+            tile_size_x = tile_size + x_residual / x_tiles
+        else:
+            tile_size_x = tile_size
+        if y_residual > 0:
+            tile_size_y = tile_size + y_residual / y_tiles
+        else:
+            tile_size_y = tile_size
+        if x_residual > 0 or y_residual > 0:
+            print(f"Warning: Adjusted tile size used for residual coverage - X: {tile_size_x}, Y: {tile_size_y}")
+        xmins = np.arange(xmin, (xmax - tile_size_x + 1), tile_size_x)
+        xmaxs = np.arange((xmin + tile_size_x), xmax + 1, tile_size_x)
+        ymins = np.arange(ymin, (ymax - tile_size_y + 1), tile_size_y)
+        ymaxs = np.arange((ymin + tile_size_y), ymax + 1, tile_size_y)
+        X, Y = np.meshgrid(xmins, ymins)
+        Xmax, Ymax = np.meshgrid(xmaxs, ymaxs)
+        gridInfo = pd.DataFrame({
+            'xmin': X.flatten(),
+            'ymin': Y.flatten(),
+            'xmax': Xmax.flatten(),
+            'ymax': Ymax.flatten(),
+        })
+        print(gridInfo)
+        return gridInfo
 #combine function, remeber to deal with uint8 problem which wont hold a value above 255
 def combine_ortho_dsm(ortho_path,dsm_path, output_path):
     with rasterio.open(ortho_path) as src:
