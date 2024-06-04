@@ -6,8 +6,8 @@ import rasterio
 import numpy as np
 import  cv2
 from arosics import COREG, COREG_LOCAL
-from .raster_tools import crop_raster
-from .raster_tools import combine_ortho_dsm
+from raster_tools import crop_raster
+from raster_tools import combine_ortho_dsm
 import geopandas as gpd
 from shapely.geometry import box as box1
 import pandas as pd
