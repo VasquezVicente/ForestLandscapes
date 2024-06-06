@@ -85,12 +85,3 @@ for tag in tags_500:
             else:
                 print("file already exists")
 
-
-Green (G): 560 ± 16 nm
-Red (R): 650 ± 16 nm;
-Red Edge (RE): 730 ± 16 nm;
-Near infrared (NIR): 860 ± 26 nm;
-
-result=560+16
-result2=560-16
-print(result , result2)
