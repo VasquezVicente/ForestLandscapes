@@ -15,3 +15,10 @@ LandscapeScripts/metadata.py
 !*.md
 
 #ignore landscapescript/drone_process.bat
+*.shp
+*.tif
+*.shx
+*.dbf
+*.prj
+*.xml
+*.shp.xml

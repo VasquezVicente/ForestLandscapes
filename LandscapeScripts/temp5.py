@@ -37,8 +37,6 @@ for ortho, dsm in zip(ortho_list, dsm_list):
     out_file = os.path.join(wd_path, "Product", ortho)
     if not os.path.exists(out_file):
         combine_ortho_dsm(ortho_file, dsm_file, out_file)
-    else:
-        print(f"Skipping {ortho} because it already exists")
 
 #crop the orthomosaics
 product_list = [file for file in os.listdir(product_path) if file.endswith(".tif")]
@@ -46,18 +44,16 @@ product_list = [file for file in os.listdir(product_path) if file.endswith(".tif
 for product in product_list:
     if not os.path.exists(os.path.join(cropped_path, product)):
         crop_raster(os.path.join(product_path, product), os.path.join(cropped_path, product), BCI_50ha_buffer)
-    else:
-        print(f"Skipping {product} because it already exists")
-
 
 #we need to align them all horizontally
 reference1= os.path.join(cropped_path, ortho_list[69])
+print("the referece is", reference1)
+
 successful_alignments = [file for file in os.listdir(os.path.join(wd_path, "Product_global")) if file.endswith(".tif")]
 for orthomosaic in ortho_list[68::-1]:
     print(orthomosaic)
     if orthomosaic != ortho_list[69]:
         target = os.path.join(cropped_path, orthomosaic)
-        
         global_path = target.replace("orthomosaic.tif","aligned_global.tif").replace("Product_cropped","Product_global")
         if not os.path.exists(global_path):
             kwargs2 = { 'path_out': global_path,
