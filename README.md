@@ -1,4 +1,4 @@
-# ForestLanscapes
+# ForestLandscapes
 [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.18914.svg)](https://doi.org/10.5281/zenodo.10380517)
 ## This repository contains all the workflows used for outputting the data products here listed. My name is Vicente Vasquez and I am Reseach technician in the Smithsonian Tropical Research institute in Panama. My main focus is to develop workflows for photogrammetry, instance crown segmentation and aligment of orthomosaics. Here, I present code to process images, correct global shifts in drone imagery, correct local shifts in drone imagery, vertical aligment of digital surface models, instance tree crown segmentation, and aligment of photogrammetry point clouds to lidar point clouds. 
 
