@@ -1,7 +1,7 @@
-import os 
-import pandas as pd
-import shutil
-import Metashape
+import os   #archivos del sistema
+import pandas as pd   #data frames
+import shutil   #copiar y mover archivos
+import Metashape #fotgrametria
 
 #functions
 def create_combined(photos_rgb):
@@ -18,21 +18,29 @@ def create_combined(photos_rgb):
 
 
 #mavic flight main folders
-images_dir=r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\2024\BCI_50ha_2024_03_06_M3E"
+images_dir=r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\2024\BCI_50ha_2024_07_03_M3E"
+path=os.path.dirname(images_dir)
 mission=os.path.basename(images_dir)
 folders=os.listdir(images_dir)
+
+
 #create a multispectral, rgb and a georefereced folder for each of the three first folders
 for folder in folders[0:3]:
-    multispectral_folder = os.path.join(path, folder, 'Multispectral')
-    rgb_folder = os.path.join(path, folder, 'RGB')
-    georeference_folder = os.path.join(path, folder, 'Georeference')
+    print(folder)
+    multispectral_folder = os.path.join(path,mission, folder, 'Multispectral')
+    rgb_folder = os.path.join(path,mission,folder, 'RGB')
+    georeference_folder = os.path.join(path,mission, folder, 'Georeference')
+
     os.makedirs(multispectral_folder, exist_ok=True)
     os.makedirs(rgb_folder, exist_ok=True)
     os.makedirs(georeference_folder, exist_ok=True)
-    all_files = [f for f in os.listdir(os.path.join(path, folder)) if os.path.isfile(os.path.join(path, folder, f))]
-    tif_files = [os.path.join(path, folder, f) for f in all_files if f.endswith('.TIF')]
-    jpg_files = [os.path.join(path, folder, f) for f in all_files if f.endswith('.JPG')]
-    other_files = [os.path.join(path, folder, f) for f in all_files if not (f.endswith('.JPG') or f.endswith('.TIF'))]
+
+    
+    all_files = os.listdir(os.path.join(path,mission, folder))
+    tif_files = [os.path.join(path,mission, folder, f) for f in all_files if f.endswith('.TIF')]
+    jpg_files = [os.path.join(path,mission,folder, f) for f in all_files if f.endswith('.JPG')]
+    # Adjust the file extension checks to be case-insensitive and ensure path and folder are correct
+    other_files = [os.path.join(path,mission, folder, f) for f in all_files if f.lower().endswith(('.nav', '.obs', '.bin', '.mrk'))]
     for file in tif_files:
         shutil.move(file, os.path.join(multispectral_folder, os.path.basename(file)))
     for file in jpg_files:
@@ -43,9 +51,10 @@ for folder in folders[0:3]:
 
 
 #metashape original images
-dest=os.path.join(images_dir.replace('Raw','Products'),"Project",mission+"_medium.psx")
+dest=os.path.join(images_dir.replace('Raw','Products'),"Project",mission+"_medium.psx") #proyecto de metashape en la carpeta de productos
 dest2=os.path.join(images_dir.replace('Raw','Products'),"Project")
 os.makedirs(dest2, exist_ok=True)
+
 doc = Metashape.Document()
 chunk= doc.addChunk()
 
