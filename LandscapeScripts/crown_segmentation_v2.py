@@ -198,7 +198,7 @@ mask_predictor = SamPredictor(sam)
 
 #Working directory
 wd_path= r"/home/vasquezv/BCI_50ha"
-BCI_2022_raw= os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_raw.shp")
+BCI_2022_raw= os.path.join(wd_path,"crownmap/BCI_50ha_2022_2023_crownmap_raw.shp")
 
 #open the shapefile
 
