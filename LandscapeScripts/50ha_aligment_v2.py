@@ -270,17 +270,3 @@ for orthomosaic in ortho_list[70:]:
     pbar.update(1)
 
 pbar.close()
-
-
-import rasterio
-import numpy as np
-import cv2
-
-path=r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2020\BCI_50ha_2020_08_01_P4P\Orthophoto\BCI_50ha_2020_08_01_orthomosaic.tif"
-
-
-
-with rasterio.open(path) as src:
-    data= src.read()
-    plt.imshow(data.transpose(1,2,0))
-    plt.show()   
