@@ -211,13 +211,10 @@ tile_folder= os.path.join(wd_path,"tiles")
 os.makedirs(tile_folder, exist_ok=True)
 
 
+#2022_09_29
 tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_09_29_aligned_local2.tif"),100,30,tile_folder)
-crown_segment(tile_folder,crownmap2022,os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_segmented.shp"))                                                    
-
-#lets do a comparison of the segmented crowns to original crowns
-crownmap2022_improved=gpd.read_file(os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_segmented.shp"))
-
-#calulate intersection over union
+crown_segment(tile_folder,crownmap2022,os.path.join(wd_path,"crownmap/BCI_50ha_2022_2023_crownmap_segmented.shp"))                                                    
+crownmap2022_improved=gpd.read_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_2023_crownmap_segmented.shp"))
 for index, crown in crownmap2022_improved.iterrows():
     crown_original = crownmap2022[crownmap2022["GlobalID"] == crown["GlobalID"]].iloc[0]
     intersection = crown.geometry.intersection(crown_original.geometry)
@@ -225,5 +222,33 @@ for index, crown in crownmap2022_improved.iterrows():
     iou = intersection.area / union.area if union.area > 0 else 0
     crownmap2022_improved.loc[index, "iou"] = iou
 
+crownmap2022_improved = crownmap2022_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
+crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_2023_crownmap_segmented.shp"))
 
-crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_segmented.shp"))
+#2022_10_27
+tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_10_27_aligned_local2.tif"),100,30,tile_folder)
+crown_segment(tile_folder,crownmap2022,os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
+crownmap2022_improved=gpd.read_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
+for index, crown in crownmap2022_improved.iterrows():
+    crown_original = crownmap2022[crownmap2022["GlobalID"] == crown["GlobalID"]].iloc[0]
+    intersection = crown.geometry.intersection(crown_original.geometry)
+    union = crown.geometry.union(crown_original.geometry)
+    iou = intersection.area / union.area if union.area > 0 else 0
+    crownmap2022_improved.loc[index, "iou"] = iou
+
+crownmap2022_improved = crownmap2022_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
+crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
+
+#2022_08_24
+tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_08_24_aligned_local2.tif"),100,30,tile_folder)
+crown_segment(tile_folder,crownmap2022,os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
+crownmap2022_improved=gpd.read_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
+for index, crown in crownmap2022_improved.iterrows():
+    crown_original = crownmap2022[crownmap2022["GlobalID"] == crown["GlobalID"]].iloc[0]
+    intersection = crown.geometry.intersection(crown_original.geometry)
+    union = crown.geometry.union(crown_original.geometry)
+    iou = intersection.area / union.area if union.area > 0 else 0
+    crownmap2022_improved.loc[index, "iou"] = iou
+
+crownmap2022_improved = crownmap2022_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
+crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
