@@ -239,7 +239,7 @@ os.makedirs(tile_folder, exist_ok=True)
 
 
 
-#The first 3 dates are imortant since they should be compared to the reference and and not to the avoided crown map
+#The first 3 dates are important since they should be compared to the reference and and not to the avoided crown map
 #2022_09_29
 #segmentation
 tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_09_29_aligned_local2.tif"),100,30,tile_folder)
@@ -290,4 +290,62 @@ crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).dr
 crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
 crownmap_avoidance = crown_avoid(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
 crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_avoidance.shp"))
+
+#Get the names of the orthomosaic files
+dates= os.listdir(os.path.join(wd_path,"Product_local2"))
+dates= [date for date in dates if date.endswith(".tif")]
+info_ortho=pd.DataFrame(columns=["filename","ortho_path"])
+info_ortho["filename"]=dates
+info_ortho["ortho_path"]=info_ortho["filename"].apply(lambda x: os.path.join(wd_path,"Product_local2",x))
+info_ortho['date'] = info_ortho['filename'].apply(lambda x: "_".join(x.split("_")[2:5]))
+
+#reference files
+date_reference= info_ortho.loc[48].values[2]
+crownmap_reference= info_ortho.loc[48].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp")
+
+for i in range(47, -1, -1):
+    ortho=info_ortho.loc[i].values[1]
+    date=info_ortho.loc[i].values[2]
+    crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_avoid.shp","crownmap_segmented.shp")
+    tile_ortho(ortho,100,30,tile_folder)
+    crown_segment(tile_folder,crownmap_reference,crownmap_out)
+    crownmap_improved=gpd.read_file(crownmap_out)
+    crownmap_prv=gpd.read_file(crownmap_reference)
+    for index, crown in crownmap_improved.iterrows():
+        crown_original = crownmap_prv[crownmap_prv["GlobalID"] == crown["GlobalID"]].iloc[0]
+        intersection = crown.geometry.intersection(crown_original.geometry)
+        union = crown.geometry.union(crown_original.geometry)
+        iou = intersection.area / union.area if union.area > 0 else 0
+        crownmap_improved.loc[index, "iou"] = iou
+    crownmap_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
+    crownmap_improved.to_file(crownmap_out)
+    crownmap_avoidance = crown_avoid(crownmap_out)
+    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoidance.shp"))
+    crownmap_reference = crownmap_out
+    date_reference = date
+
+date_reference= info_ortho.loc[50].values[2]
+crownmap_reference= info_ortho.loc[50].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp")
+
+for i in range(51,106,1):
+    ortho=info_ortho.loc[i].values[1]
+    date=info_ortho.loc[i].values[2]
+    crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_avoid.shp","crownmap_segmented.shp")
+    tile_ortho(ortho,100,30,tile_folder)
+    crown_segment(tile_folder,crownmap_reference,crownmap_out)
+    crownmap_improved=gpd.read_file(crownmap_out)
+    crownmap_prv=gpd.read_file(crownmap_reference)
+    for index, crown in crownmap_improved.iterrows():
+        crown_original = crownmap_prv[crownmap_prv["GlobalID"] == crown["GlobalID"]].iloc[0]
+        intersection = crown.geometry.intersection(crown_original.geometry)
+        union = crown.geometry.union(crown_original.geometry)
+        iou = intersection.area / union.area if union.area > 0 else 0
+        crownmap_improved.loc[index, "iou"] = iou
+    crownmap_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
+    crownmap_improved.to_file(crownmap_out)
+    crownmap_avoidance = crown_avoid(crownmap_out)
+    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoidance.shp"))
+    crownmap_reference = crownmap_out
+    date_reference = date
+
 
