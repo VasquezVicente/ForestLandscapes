@@ -18,7 +18,7 @@ def create_combined(photos_rgb):
 
 
 #mavic flight main folders
-images_dir=r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\2024\BCI_p14_2024_06_18_M3E"
+images_dir=r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\2024\BCI_50ha_2024_07_03_M3E"
 path=os.path.dirname(images_dir)
 mission=os.path.basename(images_dir)
 folders = [folder for folder in os.listdir(images_dir) if folder.startswith('DJI') and os.path.isdir(os.path.join(images_dir, folder))]
@@ -59,36 +59,29 @@ doc = Metashape.Document()
 chunk= doc.addChunk()
 
 #add photos to the chunk
-flights=os.listdir(images_dir)
-photos_rgb1=[os.path.join(images_dir, flights[0], 'RGB', f) for f in os.listdir(os.path.join(images_dir, flights[0], 'RGB'))]
-photos_rgb2=[os.path.join(images_dir, flights[1], 'RGB', f) for f in os.listdir(os.path.join(images_dir, flights[1], 'RGB'))]
-photos_rgb3=[os.path.join(images_dir, flights[2], 'RGB', f) for f in os.listdir(os.path.join(images_dir, flights[2], 'RGB'))]
-chunk1_combined = create_combined(photos_rgb1)
-chunk2_combined = create_combined(photos_rgb2)
-chunk3_combined = create_combined(photos_rgb3)
+all_combined = []
+for flights in folders[0:len(folders)]:
+    print(f'Processing {flights}')
+    photos_rgb_nth = [os.path.join(images_dir, flights, 'RGB', f) for f in os.listdir(os.path.join(images_dir, flights, 'RGB'))]
+    photos_rgb_nth = create_combined(photos_rgb_nth)
+    all_combined.extend(photos_rgb_nth)
 
-all_combined = chunk1_combined + chunk2_combined + chunk3_combined
-all_combined= chunk1_combined
-
-chunk.addPhotos(all_combined, filegroups=[5]*(len(photos_rgb1)+len(photos_rgb2)+len(photos_rgb3)), layout=Metashape.MultiplaneLayout)
-chunk.addPhotos(all_combined, filegroups=[5]*(len(photos_rgb1)), layout=Metashape.MultiplaneLayout)
+chunk.addPhotos(all_combined, filegroups=[5]*(int(len(all_combined)/5)), layout=Metashape.MultiplaneLayout)
 chunk.exportReference(os.path.join(images_dir,"Georeference", 'original_reference.txt'),delimiter=',')
 
 
 #temporal project for the ppk correction, corregir para posible cambio de nombre
 doc2 = Metashape.Document()
 chunk2= doc2.addChunk()
-folders[0]
-flight1_dir = os.path.join(images_dir, folders[0],"Georeference/tagged_RGB")
-flight2_dir = os.path.join(images_dir, r"DJI_202403061042_002_BCI-AVA\Georeference\tagged_RGB")
-flight3_dir = os.path.join(images_dir, r"DJI_202403061107_001_BCI-AVA\Georeference\tagged_RGB")
-
-flight1 = [os.path.join(flight1_dir, f) for f in os.listdir(flight1_dir)]
-flight2 = [os.path.join(flight2_dir, f) for f in os.listdir(flight2_dir)]
-flight3 = [os.path.join(flight3_dir, f) for f in os.listdir(flight3_dir)]
-images_ppk = flight1 + flight2 + flight3
+images_ppk = []
+for flights in folders:
+    print(f'Processing {flights}')
+    photos_dir = os.path.join(images_dir, flights, "Georeference", 'tagged_RGB')
+    photos_rgb_nth = os.listdir(photos_dir)
+    images_ppk.extend([os.path.join(photos_dir, photo) for photo in photos_rgb_nth])
 chunk2.addPhotos(images_ppk)
 chunk2.exportReference(os.path.join(images_dir,"Georeference",'ppk_reference.txt'),delimiter=',')
+
 
 
 # Read in both comma delimited files
@@ -115,8 +108,7 @@ merged_df.to_csv(os.path.join(images_dir,"Georeference","merged_reference.txt"),
 doc = Metashape.Document()
 doc.save(dest)
 chunk= doc.addChunk()
-chunk.addPhotos(all_combined, filegroups=[5]*(len(photos_rgb1)+len(photos_rgb2)+len(photos_rgb3)), layout=Metashape.MultiplaneLayout)#tres vuelos
-chunk.addPhotos(all_combined, filegroups=[5]*(len(photos_rgb1)), layout=Metashape.MultiplaneLayout)#un vuelo
+chunk.addPhotos(all_combined, filegroups=[5]*(int(len(all_combined)/5)), layout=Metashape.MultiplaneLayout)
 chunk.importReference(os.path.join(images_dir,"Georeference","merged_reference.txt"),delimiter=',',columns="nxyzXYZabcABC|[]")
 doc.save()
 
