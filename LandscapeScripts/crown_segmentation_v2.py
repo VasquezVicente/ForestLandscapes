@@ -259,7 +259,7 @@ crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29
 
 #crown avoidance
 crownmap_avoidance = crown_avoid(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp"))
-crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_avoidance.shp"))
+crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_avoid.shp"))
 
 #2022_10_27
 tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_10_27_aligned_local2.tif"),100,30,tile_folder)
@@ -274,7 +274,7 @@ for index, crown in crownmap_improved.iterrows():
 crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
 crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
 crownmap_avoidance = crown_avoid(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
-crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_avoidance.shp"))
+crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_avoid.shp"))
 
 #2022_08_24
 tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_08_24_aligned_local2.tif"),100,30,tile_folder)
@@ -289,7 +289,7 @@ for index, crown in crownmap_improved.iterrows():
 crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
 crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
 crownmap_avoidance = crown_avoid(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
-crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_avoidance.shp"))
+crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_avoid.shp"))
 
 #Get the names of the orthomosaic files
 dates= os.listdir(os.path.join(wd_path,"Product_local2"))
@@ -320,7 +320,7 @@ for i in range(47, -1, -1):
     crownmap_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
     crownmap_improved.to_file(crownmap_out)
     crownmap_avoidance = crown_avoid(crownmap_out)
-    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoidance.shp"))
+    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoid.shp"))
     crownmap_reference = crownmap_out
     date_reference = date
 
@@ -344,7 +344,7 @@ for i in range(51,106,1):
     crownmap_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
     crownmap_improved.to_file(crownmap_out)
     crownmap_avoidance = crown_avoid(crownmap_out)
-    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoidance.shp"))
+    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoid.shp"))
     crownmap_reference = crownmap_out
     date_reference = date
 
