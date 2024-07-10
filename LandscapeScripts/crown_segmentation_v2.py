@@ -244,6 +244,9 @@ info_ortho=pd.DataFrame(columns=["filename","ortho_path"])
 info_ortho["filename"]=dates
 info_ortho["ortho_path"]=info_ortho["filename"].apply(lambda x: os.path.join(wd_path,"Product_local2",x))
 info_ortho['date'] = info_ortho['filename'].apply(lambda x: "_".join(x.split("_")[2:5]))
+info_ortho=info_ortho.sort_values("date")
+print(info_ortho)
+
 
 #reference files
 date_reference= info_ortho.loc[48].values[2]
