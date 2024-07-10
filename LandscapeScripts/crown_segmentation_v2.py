@@ -251,10 +251,10 @@ print(info_ortho)
 
 
 #reference files
-date_reference= info_ortho.loc[48].values[2]
-crownmap_reference= info_ortho.loc[48].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp")
+date_reference= info_ortho.loc[45].values[2]
+crownmap_reference= info_ortho.loc[45].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp")
 
-for i in range(47, -1, -1):
+for i in range(44, -1, -1):
     ortho=info_ortho.loc[i].values[1]
     date=info_ortho.loc[i].values[2]
     crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_avoid.shp","crownmap_segmented.shp")
