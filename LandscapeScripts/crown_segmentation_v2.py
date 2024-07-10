@@ -251,10 +251,9 @@ print(info_ortho)
 
 
 #reference files
-date_reference= info_ortho.loc[45].values[2]
-crownmap_reference= info_ortho.loc[45].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp")
-
-for i in range(44, -1, -1):
+date_reference= info_ortho.loc[48].values[2]
+crownmap_reference= info_ortho.loc[48].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp")
+for i in range(47, -1, -1):
     ortho=info_ortho.loc[i].values[1]
     date=info_ortho.loc[i].values[2]
     crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_avoid.shp","crownmap_segmented.shp")
@@ -272,7 +271,7 @@ for i in range(44, -1, -1):
     crownmap_improved.to_file(crownmap_out)
     crownmap_avoidance = crown_avoid(crownmap_out)
     crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoid.shp"))
-    crownmap_reference = crownmap_out
+    crownmap_reference = crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoid.shp")
     date_reference = date
 
 date_reference= info_ortho.loc[50].values[2]
@@ -297,7 +296,6 @@ for i in range(51,106,1):
     crownmap_improved.to_file(crownmap_out)
     crownmap_avoidance = crown_avoid(crownmap_out)
     crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoid.shp"))
-    crownmap_reference = crownmap_out
+    crownmap_reference = crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoid.shp")
     date_reference = date
-
 
