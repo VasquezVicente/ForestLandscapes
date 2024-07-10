@@ -245,6 +245,8 @@ info_ortho["filename"]=dates
 info_ortho["ortho_path"]=info_ortho["filename"].apply(lambda x: os.path.join(wd_path,"Product_local2",x))
 info_ortho['date'] = info_ortho['filename'].apply(lambda x: "_".join(x.split("_")[2:5]))
 info_ortho=info_ortho.sort_values("date")
+#reset the index
+info_ortho=info_ortho.reset_index(drop=True)
 print(info_ortho)
 
 
