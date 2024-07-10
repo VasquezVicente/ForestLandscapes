@@ -237,60 +237,6 @@ orthomosaics=os.listdir(os.path.join(wd_path,"Product_local2"))
 tile_folder= os.path.join(wd_path,"tiles")
 os.makedirs(tile_folder, exist_ok=True)
 
-
-
-#The first 3 dates are important since they should be compared to the reference and and not to the avoided crown map
-#2022_09_29
-#segmentation
-tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_09_29_aligned_local2.tif"),100,30,tile_folder)
-crown_segment(tile_folder,crownmap2022,os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp"))                                                    
-crownmap_improved=gpd.read_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp"))
-
-#filter repeated crowns
-for index, crown in crownmap_improved.iterrows():
-    crown_original = crownmap2022[crownmap2022["GlobalID"] == crown["GlobalID"]].iloc[0]
-    intersection = crown.geometry.intersection(crown_original.geometry)
-    union = crown.geometry.union(crown_original.geometry)
-    iou = intersection.area / union.area if union.area > 0 else 0
-    crownmap_improved.loc[index, "iou"] = iou
-
-crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
-crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp"))
-
-#crown avoidance
-crownmap_avoidance = crown_avoid(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp"))
-crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_avoid.shp"))
-
-#2022_10_27
-tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_10_27_aligned_local2.tif"),100,30,tile_folder)
-crown_segment(tile_folder,crownmap2022,os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
-crownmap_improved=gpd.read_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
-for index, crown in crownmap_improved.iterrows():
-    crown_original = crownmap2022[crownmap2022["GlobalID"] == crown["GlobalID"]].iloc[0]
-    intersection = crown.geometry.intersection(crown_original.geometry)
-    union = crown.geometry.union(crown_original.geometry)
-    iou = intersection.area / union.area if union.area > 0 else 0
-    crownmap_improved.loc[index, "iou"] = iou
-crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
-crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
-crownmap_avoidance = crown_avoid(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
-crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_avoid.shp"))
-
-#2022_08_24
-tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_08_24_aligned_local2.tif"),100,30,tile_folder)
-crown_segment(tile_folder,crownmap2022,os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
-crownmap_improved=gpd.read_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
-for index, crown in crownmap_improved.iterrows():
-    crown_original = crownmap2022[crownmap2022["GlobalID"] == crown["GlobalID"]].iloc[0]
-    intersection = crown.geometry.intersection(crown_original.geometry)
-    union = crown.geometry.union(crown_original.geometry)
-    iou = intersection.area / union.area if union.area > 0 else 0
-    crownmap_improved.loc[index, "iou"] = iou
-crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
-crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
-crownmap_avoidance = crown_avoid(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
-crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_avoid.shp"))
-
 #Get the names of the orthomosaic files
 dates= os.listdir(os.path.join(wd_path,"Product_local2"))
 dates= [date for date in dates if date.endswith(".tif")]

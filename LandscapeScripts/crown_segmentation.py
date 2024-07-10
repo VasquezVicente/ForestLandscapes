@@ -535,8 +535,62 @@ adjusted_crowns.to_file(os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownm
 #lets create a list of the dates, and work from dates and not from a list
 dates= os.listdir(r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\Product_local2")
 dates= [date for date in dates if date.endswith(".tif")]
-
-info_ortho=pd.DataFrame(columns=["date","ortho_path"])
+info_ortho=pd.DataFrame(columns=["filename","ortho_path"])
 info_ortho["filename"]=dates
-info_ortho["ortho_path"]=info_ortho["date"].apply(lambda x: os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\Product_local2",x))
+info_ortho["ortho_path"]=info_ortho["filename"].apply(lambda x: os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\Product_local2",x))
 info_ortho['date'] = info_ortho['filename'].apply(lambda x: "_".join(x.split("_")[2:5]))
+
+info_ortho.loc[info_ortho['date'] == '2022_07_27',"ortho_path"].values[0]
+
+
+
+#reference files
+date_reference= info_ortho.loc[48].values[2]
+crownmap_reference= info_ortho.loc[48].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp")
+
+for i in range(47, -1, -1):
+    ortho=info_ortho.loc[i].values[1]
+    date=info_ortho.loc[i].values[2]
+    crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_avoid.shp","crownmap_segmented.shp")
+    tile_ortho(ortho,100,30,tile_folder)
+    crown_segment(tile_folder,crownmap_reference,crownmap_out)
+    crownmap_improved=gpd.read_file(crownmap_out)
+    crownmap_prv=gpd.read_file(crownmap_reference)
+    for index, crown in crownmap_improved.iterrows():
+        crown_original = crownmap_prv[crownmap_prv["GlobalID"] == crown["GlobalID"]].iloc[0]
+        intersection = crown.geometry.intersection(crown_original.geometry)
+        union = crown.geometry.union(crown_original.geometry)
+        iou = intersection.area / union.area if union.area > 0 else 0
+        crownmap_improved.loc[index, "iou"] = iou
+    crownmap_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
+    crownmap_improved.to_file(crownmap_out)
+    crownmap_avoidance = crown_avoid(crownmap_out)
+    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoidance.shp"))
+    crownmap_reference = crownmap_out
+    date_reference = date
+
+date_reference= info_ortho.loc[50].values[2]
+crownmap_reference= info_ortho.loc[50].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp")
+
+for i in range(51,106,1):
+    ortho=info_ortho.loc[i].values[1]
+    date=info_ortho.loc[i].values[2]
+    crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_avoid.shp","crownmap_segmented.shp")
+    tile_ortho(ortho,100,30,tile_folder)
+    crown_segment(tile_folder,crownmap_reference,crownmap_out)
+    crownmap_improved=gpd.read_file(crownmap_out)
+    crownmap_prv=gpd.read_file(crownmap_reference)
+    for index, crown in crownmap_improved.iterrows():
+        crown_original = crownmap_prv[crownmap_prv["GlobalID"] == crown["GlobalID"]].iloc[0]
+        intersection = crown.geometry.intersection(crown_original.geometry)
+        union = crown.geometry.union(crown_original.geometry)
+        iou = intersection.area / union.area if union.area > 0 else 0
+        crownmap_improved.loc[index, "iou"] = iou
+    crownmap_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
+    crownmap_improved.to_file(crownmap_out)
+    crownmap_avoidance = crown_avoid(crownmap_out)
+    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoidance.shp"))
+    crownmap_reference = crownmap_out
+    date_reference = date
+    
+
