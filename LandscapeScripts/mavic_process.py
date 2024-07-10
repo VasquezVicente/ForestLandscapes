@@ -18,15 +18,15 @@ def create_combined(photos_rgb):
 
 
 #mavic flight main folders
-images_dir=r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\2024\BCI_50ha_2024_07_03_M3E"
+images_dir=r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\2024\BCI_p14_2024_06_18_M3E"
 path=os.path.dirname(images_dir)
 mission=os.path.basename(images_dir)
-folders=os.listdir(images_dir)
+folders = [folder for folder in os.listdir(images_dir) if folder.startswith('DJI') and os.path.isdir(os.path.join(images_dir, folder))]
 
 
 #create a multispectral, rgb and a georefereced folder for each of the three first folders
-for folder in folders[0:3]:
-    print(folder)
+for folder in folders[0:len(folders)]:
+    print(f'Processing {folder}')
     multispectral_folder = os.path.join(path,mission, folder, 'Multispectral')
     rgb_folder = os.path.join(path,mission,folder, 'RGB')
     georeference_folder = os.path.join(path,mission, folder, 'Georeference')
@@ -68,17 +68,21 @@ chunk2_combined = create_combined(photos_rgb2)
 chunk3_combined = create_combined(photos_rgb3)
 
 all_combined = chunk1_combined + chunk2_combined + chunk3_combined
+all_combined= chunk1_combined
 
 chunk.addPhotos(all_combined, filegroups=[5]*(len(photos_rgb1)+len(photos_rgb2)+len(photos_rgb3)), layout=Metashape.MultiplaneLayout)
+chunk.addPhotos(all_combined, filegroups=[5]*(len(photos_rgb1)), layout=Metashape.MultiplaneLayout)
 chunk.exportReference(os.path.join(images_dir,"Georeference", 'original_reference.txt'),delimiter=',')
 
 
-#temporal project for the ppk correction
+#temporal project for the ppk correction, corregir para posible cambio de nombre
 doc2 = Metashape.Document()
 chunk2= doc2.addChunk()
-flight1_dir = os.path.join(images_dir, r"DJI_202403061013_001_BCI-AVA\Georeference\tagged_RGB")
+folders[0]
+flight1_dir = os.path.join(images_dir, folders[0],"Georeference/tagged_RGB")
 flight2_dir = os.path.join(images_dir, r"DJI_202403061042_002_BCI-AVA\Georeference\tagged_RGB")
 flight3_dir = os.path.join(images_dir, r"DJI_202403061107_001_BCI-AVA\Georeference\tagged_RGB")
+
 flight1 = [os.path.join(flight1_dir, f) for f in os.listdir(flight1_dir)]
 flight2 = [os.path.join(flight2_dir, f) for f in os.listdir(flight2_dir)]
 flight3 = [os.path.join(flight3_dir, f) for f in os.listdir(flight3_dir)]
@@ -98,7 +102,6 @@ merged_df['Z/Altitude'] = merged_df['Z/Altitude_y']
 
 merged_df.drop(columns=['X/Longitude_x', 'X/Longitude_y', 'Y/Latitude_x', 'Y/Latitude_y', 'Z/Altitude_x', 'Z/Altitude_y'], inplace=True)
 #reorder columns to match the original reference
-original_reference.columns
 merged_df = merged_df[['#Label', 'X/Longitude', 'Y/Latitude', 'Z/Altitude', 'Yaw', 'Pitch',
        'Roll', 'Error_(m)', 'X_error', 'Y_error', 'Z_error', 'Error_(deg)',
        'Yaw_error', 'Pitch_error', 'Roll_error', 'X_est', 'Y_est', 'Z_est',
@@ -112,7 +115,8 @@ merged_df.to_csv(os.path.join(images_dir,"Georeference","merged_reference.txt"),
 doc = Metashape.Document()
 doc.save(dest)
 chunk= doc.addChunk()
-chunk.addPhotos(all_combined, filegroups=[5]*(len(photos_rgb1)+len(photos_rgb2)+len(photos_rgb3)), layout=Metashape.MultiplaneLayout)
+chunk.addPhotos(all_combined, filegroups=[5]*(len(photos_rgb1)+len(photos_rgb2)+len(photos_rgb3)), layout=Metashape.MultiplaneLayout)#tres vuelos
+chunk.addPhotos(all_combined, filegroups=[5]*(len(photos_rgb1)), layout=Metashape.MultiplaneLayout)#un vuelo
 chunk.importReference(os.path.join(images_dir,"Georeference","merged_reference.txt"),delimiter=',',columns="nxyzXYZabcABC|[]")
 doc.save()
 
@@ -156,21 +160,22 @@ doc.save()
 
 chunk.exportReport(dest.replace('medium','report').replace('.psx','.pdf'))
 
-folder_cloud= os.path.join(images_dir, 'Cloudpoint')
+out_dir= images_dir.replace('Raw','Products')
+folder_cloud= os.path.join(out_dir, 'Cloudpoint')
 os.makedirs(folder_cloud, exist_ok=True)
-folder_dsm= os.path.join(images_dir, 'DSM')
+folder_dsm= os.path.join(out_dir, 'DSM')
 os.makedirs(folder_dsm, exist_ok=True)
-folder_orthomosaic= os.path.join(images_dir, 'Orthophoto')
+folder_orthomosaic= os.path.join(out_dir, 'Orthophoto')
 os.makedirs(folder_orthomosaic, exist_ok=True)
-
+mission
 
 if chunk.point_cloud:
-            chunk.exportPointCloud(os.path.join(folder_cloud,"BCI_50ha_2024_03_06_cloud.las"), source_data = Metashape.PointCloudData,format = Metashape.PointCloudFormatLAS, crs = Metashape.CoordinateSystem("EPSG::32617"))
-            chunk.exportPointCloud(os.path.join(folder_cloud,"BCI_50ha_2024_03_06_cloud.ply"), source_data = Metashape.PointCloudData,format = Metashape.PointCloudFormatPLY, crs = Metashape.CoordinateSystem("EPSG::32617"))
+            chunk.exportPointCloud(os.path.join(folder_cloud,mission.replace("M3E","cloud.las")), source_data = Metashape.PointCloudData,format = Metashape.PointCloudFormatLAS, crs = Metashape.CoordinateSystem("EPSG::32617"))
+            chunk.exportPointCloud(os.path.join(folder_cloud,mission.replace("M3E","cloud.ply")), source_data = Metashape.PointCloudData,format = Metashape.PointCloudFormatPLY, crs = Metashape.CoordinateSystem("EPSG::32617"))
 if chunk.elevation:
-            chunk.exportRaster(os.path.join(folder_dsm,"BCI_50ha_2024_03_06_dsm.tif"), source_data = Metashape.ElevationData,projection= proj)
+            chunk.exportRaster(os.path.join(folder_dsm,mission.replace("M3E","dsm.tif")), source_data = Metashape.ElevationData,projection= proj)
 if chunk.orthomosaic:
-            chunk.exportRaster(os.path.join(folder_orthomosaic,"BCI_50ha_2024_03_06_orthomosaic.tif", source_data = Metashape.OrthomosaicData,projection= proj)
+            chunk.exportRaster(os.path.join(folder_orthomosaic,mission.replace("M3E","orthomosaic.tif")), source_data = Metashape.OrthomosaicData,projection= proj)
 
 print('Processing finished')
 
