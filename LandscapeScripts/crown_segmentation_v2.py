@@ -253,12 +253,12 @@ for i in range(47, -1, -1):
     ortho=info_ortho.loc[i].values[1]
     date=info_ortho.loc[i].values[2]
     crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_avoid.shp","crownmap_segmented.shp")
+    crownmap_reference_gpd=gpd.read_file(crownmap_reference)
     tile_ortho(ortho,100,30,tile_folder)
-    crown_segment(tile_folder,crownmap_reference,crownmap_out)
+    crown_segment(tile_folder,crownmap_reference_gpd,crownmap_out)
     crownmap_improved=gpd.read_file(crownmap_out)
-    crownmap_prv=gpd.read_file(crownmap_reference)
     for index, crown in crownmap_improved.iterrows():
-        crown_original = crownmap_prv[crownmap_prv["GlobalID"] == crown["GlobalID"]].iloc[0]
+        crown_original = crownmap_reference_gpd[crownmap_reference_gpd["GlobalID"] == crown["GlobalID"]].iloc[0]
         intersection = crown.geometry.intersection(crown_original.geometry)
         union = crown.geometry.union(crown_original.geometry)
         iou = intersection.area / union.area if union.area > 0 else 0
@@ -277,12 +277,13 @@ for i in range(51,106,1):
     ortho=info_ortho.loc[i].values[1]
     date=info_ortho.loc[i].values[2]
     crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_avoid.shp","crownmap_segmented.shp")
+    crownmap_reference_gpd=gpd.read_file(crownmap_reference)
     tile_ortho(ortho,100,30,tile_folder)
-    crown_segment(tile_folder,crownmap_reference,crownmap_out)
+    crown_segment(tile_folder,crownmap_reference_gpd,crownmap_out)
     crownmap_improved=gpd.read_file(crownmap_out)
     crownmap_prv=gpd.read_file(crownmap_reference)
     for index, crown in crownmap_improved.iterrows():
-        crown_original = crownmap_prv[crownmap_prv["GlobalID"] == crown["GlobalID"]].iloc[0]
+        crown_original = crownmap_reference_gpd[crownmap_reference_gpd["GlobalID"] == crown["GlobalID"]].iloc[0]
         intersection = crown.geometry.intersection(crown_original.geometry)
         union = crown.geometry.union(crown_original.geometry)
         iou = intersection.area / union.area if union.area > 0 else 0
