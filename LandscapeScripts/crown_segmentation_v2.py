@@ -277,6 +277,7 @@ crownmap2022["GlobalID"] = crownmap2022["GlobalID"].astype(str)
 orthomosaics=os.listdir(os.path.join(wd_path,"Product_local2"))
 tile_folder= os.path.join(wd_path,"tiles")
 os.makedirs(tile_folder, exist_ok=True)
+crownmap2022.to_file(BCI_2022_raw)
 
 #Get the names of the orthomosaic files
 
