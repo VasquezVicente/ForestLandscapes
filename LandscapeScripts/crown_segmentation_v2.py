@@ -23,8 +23,8 @@ from rasterio.warp import reproject, Resampling
 from rasterio.mask import mask
 from rasterio.features import geometry_mask
 from rasterio import windows
-from rasterio.plot import show
 import uuid
+import logging
 
 #functions
 #tile ortho divides and orthomosaic into tiles by taking an orthomosaic the x and y tile size and adding a buffer, the tile size its adjusted 
@@ -257,6 +257,9 @@ def process_crown_data(wd_path, tile_folder, reference, ortho, out_segmented):
     crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
     crownmap_improved.to_file(out_segmented)
 
+logging.basicConfig(filename='crown_segmentation_v2.log', level=logging.DEBUG, 
+                    format='%(asctime)s %(levelname)s:%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
 
 MODEL_TYPE = "vit_h"
 checkpoint = r"/home/vasquezv/BCI_50ha/aux_files/sam_vit_h_4b8939.pth"
@@ -267,15 +270,11 @@ mask_predictor = SamPredictor(sam)
 
 #Working directory
 wd_path= r"/home/vasquezv/BCI_50ha"
-wd_path= os.path.join(wd_path)
-
 BCI_2022_raw= os.path.join(wd_path,"crownmap/BCI_50ha_2022_2023_crownmap_raw.shp")
-
 #open the shapefile
 crownmap2022=gpd.read_file(BCI_2022_raw)
 crownmap2022["GlobalID"] = [uuid.uuid4() for _ in range(len(crownmap2022))]
 crownmap2022["GlobalID"] = crownmap2022["GlobalID"].astype(str)
-
 orthomosaics=os.listdir(os.path.join(wd_path,"Product_local2"))
 tile_folder= os.path.join(wd_path,"tiles")
 os.makedirs(tile_folder, exist_ok=True)
@@ -288,19 +287,25 @@ info_ortho["filename"]=dates
 info_ortho["ortho_path"]=info_ortho["filename"].apply(lambda x: os.path.join(wd_path,"Product_local2",x))
 info_ortho['date'] = info_ortho['filename'].apply(lambda x: "_".join(x.split("_")[2:5]))
 info_ortho=info_ortho.sort_values("date")
-#reset the index
 info_ortho=info_ortho.reset_index(drop=True)
 print(info_ortho)
 
-date_reference= info_ortho.loc[48].values[2]
-crownmap_reference= info_ortho.loc[48].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp")
+#process the crowns
+try:
+    # Your code here
+    logging.info('Script started successfully.')
+    date_reference= info_ortho.loc[48].values[2]
+    crownmap_reference= info_ortho.loc[48].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp")
 
-for i in range(47, -1, -1):
-    ortho=info_ortho.loc[i].values[1]
-    date=info_ortho.loc[i].values[2]
-    crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_segmented.shp","crownmap_segmented.shp")
-    process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, crownmap_out)
-    crownmap_reference=crownmap_out
+    for i in range(47, -1, -1):
+        ortho=info_ortho.loc[i].values[1]
+        date=info_ortho.loc[i].values[2]
+        crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_segmented.shp","crownmap_segmented.shp")
+        process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, crownmap_out)
+        crownmap_reference=crownmap_out
+# Potentially problematic code
+except Exception as e:
+    logging.error(f'Error occurred: {e}', exc_info=True)
 
 date_reference= info_ortho.loc[50].values[2]
 crownmap_reference= info_ortho.loc[50].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp")
