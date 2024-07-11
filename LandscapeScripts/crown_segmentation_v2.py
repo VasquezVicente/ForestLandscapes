@@ -266,7 +266,6 @@ mask_predictor = SamPredictor(sam)
 
 #Working directory
 wd_path= r"/home/vasquezv/BCI_50ha"
-wd_path=r"D:/BCI_50ha"
 wd_path= os.path.join(wd_path)
 
 BCI_2022_raw= os.path.join(wd_path,"crownmap/BCI_50ha_2022_2023_crownmap_raw.shp")
