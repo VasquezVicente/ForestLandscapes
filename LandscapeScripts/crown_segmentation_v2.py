@@ -239,6 +239,7 @@ def process_crown_data(wd_path, tile_folder, reference, ortho, out_segmented):
     tile_ortho(ortho, 100, 30, tile_folder)
     
     # Segment the crown
+    reference=gpd.read_file(reference)
     crown_segment(tile_folder, reference,out_segmented)
     
     # Read the segmented crown map
