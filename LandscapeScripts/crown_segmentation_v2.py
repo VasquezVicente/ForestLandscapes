@@ -269,15 +269,10 @@ mask_predictor = SamPredictor(sam)
 
 #Working directory
 wd_path= r"/home/vasquezv/BCI_50ha"
-BCI_2022_raw= os.path.join(wd_path,"crownmap/BCI_50ha_2022_2023_crownmap_raw.shp")
+crownmap2022= os.path.join(wd_path,"crownmap/BCI_50ha_2022_2023_crownmap_raw.shp")
 #open the shapefile
-crownmap2022=gpd.read_file(BCI_2022_raw)
-crownmap2022["GlobalID"] = [uuid.uuid4() for _ in range(len(crownmap2022))]
-crownmap2022["GlobalID"] = crownmap2022["GlobalID"].astype(str)
-orthomosaics=os.listdir(os.path.join(wd_path,"Product_local2"))
 tile_folder= os.path.join(wd_path,"tiles")
 os.makedirs(tile_folder, exist_ok=True)
-crownmap2022.to_file(BCI_2022_raw)
 
 #Get the names of the orthomosaic files
 
