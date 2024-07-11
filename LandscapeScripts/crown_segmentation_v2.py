@@ -254,12 +254,11 @@ def process_crown_data(wd_path, tile_folder, reference, ortho, out_segmented):
         crownmap_improved.loc[index, "iou"] = iou
     
     # Remove duplicates based on IoU
-    crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
-    crownmap_improved.to_file(out_segmented)
+    crownmap_filtered = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
+    crownmap_filtered.to_file(out_segmented)
 
 logging.basicConfig(filename='crown_segmentation_v2.log', level=logging.DEBUG, 
                     format='%(asctime)s %(levelname)s:%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-
 
 MODEL_TYPE = "vit_h"
 checkpoint = r"/home/vasquezv/BCI_50ha/aux_files/sam_vit_h_4b8939.pth"
@@ -280,6 +279,7 @@ tile_folder= os.path.join(wd_path,"tiles")
 os.makedirs(tile_folder, exist_ok=True)
 
 #Get the names of the orthomosaic files
+
 dates= os.listdir(os.path.join(wd_path,"Product_local2"))
 dates= [date for date in dates if date.endswith(".tif")]
 info_ortho=pd.DataFrame(columns=["filename","ortho_path"])
@@ -289,6 +289,21 @@ info_ortho['date'] = info_ortho['filename'].apply(lambda x: "_".join(x.split("_"
 info_ortho=info_ortho.sort_values("date")
 info_ortho=info_ortho.reset_index(drop=True)
 print(info_ortho)
+
+
+
+#reference1 2022_09_29
+crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp")
+process_crown_data(wd_path, tile_folder, BCI_2022_raw, info_ortho.loc[49].values[1],crownmap_out)
+
+#reference2 2022_08_24
+crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp")
+process_crown_data(wd_path, tile_folder, BCI_2022_raw, info_ortho.loc[48].values[1],crownmap_out)
+
+#reference3 2022_10_27
+crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp")
+process_crown_data(wd_path, tile_folder, BCI_2022_raw, info_ortho.loc[50].values[1],crownmap_out)
+
 
 #process the crowns
 try:
@@ -306,3 +321,22 @@ try:
 # Potentially problematic code
 except Exception as e:
     logging.error(f'Error occurred: {e}', exc_info=True)
+
+
+try:
+    # Your code here
+    logging.info('Script started successfully.')
+    date_reference= info_ortho.loc[50].values[2]
+    crownmap_reference= info_ortho.loc[50].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp")
+
+    for i in range(51, -1, -1):
+        ortho=info_ortho.loc[i].values[1]
+        date=info_ortho.loc[i].values[2]
+        crownmap_out= crownmap_reference.replace(date_reference,date)
+        process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, crownmap_out)
+        crownmap_reference=crownmap_out
+# Potentially problematic code
+except Exception as e:
+    logging.error(f'Error occurred: {e}', exc_info=True)
+
+
