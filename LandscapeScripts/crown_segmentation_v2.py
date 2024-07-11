@@ -294,15 +294,15 @@ print(info_ortho)
 
 #reference1 2022_09_29
 crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp")
-process_crown_data(wd_path, tile_folder, BCI_2022_raw, info_ortho.loc[49].values[1],crownmap_out)
+process_crown_data(wd_path, tile_folder, crownmap2022, info_ortho.loc[49].values[1],crownmap_out)
 
 #reference2 2022_08_24
 crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp")
-process_crown_data(wd_path, tile_folder, BCI_2022_raw, info_ortho.loc[48].values[1],crownmap_out)
+process_crown_data(wd_path, tile_folder, crownmap2022, info_ortho.loc[48].values[1],crownmap_out)
 
 #reference3 2022_10_27
 crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp")
-process_crown_data(wd_path, tile_folder, BCI_2022_raw, info_ortho.loc[50].values[1],crownmap_out)
+process_crown_data(wd_path, tile_folder, crownmap2022, info_ortho.loc[50].values[1],crownmap_out)
 
 
 #process the crowns
