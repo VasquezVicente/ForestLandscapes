@@ -300,19 +300,9 @@ try:
     for i in range(47, -1, -1):
         ortho=info_ortho.loc[i].values[1]
         date=info_ortho.loc[i].values[2]
-        crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_segmented.shp","crownmap_segmented.shp")
+        crownmap_out= crownmap_reference.replace(date_reference,date)
         process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, crownmap_out)
         crownmap_reference=crownmap_out
 # Potentially problematic code
 except Exception as e:
     logging.error(f'Error occurred: {e}', exc_info=True)
-
-date_reference= info_ortho.loc[50].values[2]
-crownmap_reference= info_ortho.loc[50].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp")
-
-for i in range(51, 106, 1):
-    ortho=info_ortho.loc[i].values[1]
-    date=info_ortho.loc[i].values[2]
-    crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_segmented.shp","crownmap_segmented.shp")
-    process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, crownmap_out)
-    crownmap_reference=crownmap_out
