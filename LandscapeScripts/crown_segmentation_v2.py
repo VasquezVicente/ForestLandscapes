@@ -222,6 +222,16 @@ def crown_avoid(dir):
     for idx, new_geom in modifications.items():
         crown_avoidance.at[idx, 'geometry'] = new_geom
 
+    #POST PROCESS THE MUTLIPOLYGONS
+    # Pre-process to handle MultiPolygons
+    for index, row in crown_avoidance.iterrows():
+        if isinstance(row.geometry, MultiPolygon):
+            print("found one multipolygon")
+            multi_polygon = row.geometry
+            polygons = [polygon for polygon in multi_polygon.geoms]
+            largest_polygon = max(polygons, key=lambda polygon: polygon.area)
+            crown_avoidance.at[index, 'geometry'] = largest_polygon
+
     return crown_avoidance
 
 def process_crown_data(wd_path, tile_folder, reference, ortho, out_segmented):
@@ -244,13 +254,7 @@ def process_crown_data(wd_path, tile_folder, reference, ortho, out_segmented):
     
     # Remove duplicates based on IoU
     crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
-    
-    # Save the improved crown map
-    crownmap2022_improved.to_file(out_segmented)
-    
-    # Generate and save the crown avoidance map
-    crownmap_avoidance = crown_avoid(out_segmented)
-    crownmap_avoidance.to_file(out_segmented.replace("_segmented.shp", "_avoid.shp"))
+    crownmap_improved.to_file(out_segmented)
 
 
 MODEL_TYPE = "vit_h"
@@ -262,6 +266,8 @@ mask_predictor = SamPredictor(sam)
 
 #Working directory
 wd_path= r"/home/vasquezv/BCI_50ha"
+wd_path=r"D:/BCI_50ha"
+wd_path= os.path.join(wd_path)
 
 BCI_2022_raw= os.path.join(wd_path,"crownmap/BCI_50ha_2022_2023_crownmap_raw.shp")
 
@@ -286,36 +292,22 @@ info_ortho=info_ortho.sort_values("date")
 info_ortho=info_ortho.reset_index(drop=True)
 print(info_ortho)
 
-
-#reference files
 date_reference= info_ortho.loc[48].values[2]
-crownmap_reference= gpd.read_file(info_ortho.loc[48].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp"))
-ortho=info_ortho.loc[47].values[1]
-out_seg= os.path.join(wd_path, info_ortho.loc[47].values[2].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp"))
-process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, out_seg)
+crownmap_reference= info_ortho.loc[48].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp")
 
+for i in range(47, -1, -1):
+    ortho=info_ortho.loc[i].values[1]
+    date=info_ortho.loc[i].values[2]
+    crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_segmented.shp","crownmap_segmented.shp")
+    process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, crownmap_out)
+    crownmap_reference=crownmap_out
 
-date_reference= info_ortho.loc[47].values[2]
-crownmap_reference= gpd.read_file(info_ortho.loc[47].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp"))
-ortho=info_ortho.loc[46].values[1]
-out_seg= os.path.join(wd_path, info_ortho.loc[46].values[2].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp"))
-process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, out_seg)
+date_reference= info_ortho.loc[50].values[2]
+crownmap_reference= info_ortho.loc[50].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp")
 
-date_reference= info_ortho.loc[46].values[2]
-crownmap_reference= gpd.read_file(info_ortho.loc[46].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp"))
-ortho=info_ortho.loc[45].values[1]
-out_seg= os.path.join(wd_path, info_ortho.loc[45].values[2].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp"))
-process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, out_seg)
-
-date_reference= info_ortho.loc[45].values[2]
-crownmap_reference= gpd.read_file(info_ortho.loc[45].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp"))
-ortho=info_ortho.loc[44].values[1]
-out_seg= os.path.join(wd_path, info_ortho.loc[44].values[2].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp"))
-process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, out_seg)
-
-date_reference= info_ortho.loc[44].values[2]
-crownmap_reference= gpd.read_file(info_ortho.loc[44].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_avoid.shp"))
-ortho=info_ortho.loc[43].values[1]
-out_seg= os.path.join(wd_path, info_ortho.loc[43].values[2].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp"))
-process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, out_seg)
-
+for i in range(51, 106, 1):
+    ortho=info_ortho.loc[i].values[1]
+    date=info_ortho.loc[i].values[2]
+    crownmap_out= crownmap_reference.replace(date_reference,date).replace("crownmap_segmented.shp","crownmap_segmented.shp")
+    process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, crownmap_out)
+    crownmap_reference=crownmap_out
