@@ -1,3 +1,4 @@
+#crown segmentation
 #utility modules
 import matplotlib.pyplot as plt
 import os
@@ -23,7 +24,7 @@ from rasterio.mask import mask
 from rasterio.features import geometry_mask
 from rasterio import windows
 from rasterio.plot import show
-
+import uuid
 
 #functions
 #tile ortho divides and orthomosaic into tiles by taking an orthomosaic the x and y tile size and adding a buffer, the tile size its adjusted 
@@ -187,244 +188,6 @@ def crown_segment(tile_folder,shp,output_shapefile):
         final_gdfs.append(combined_gdf)
     final_gdf = gpd.GeoDataFrame(pd.concat(final_gdfs, ignore_index=True), crs=src.crs)
     final_gdf.to_file(output_shapefile)
-def crown_segment2(tile_path,shp,output_shapefile):
-        with rasterio.open(tile_path) as src:
-            data=src.read()
-            transposed_data=data.transpose(1,2,0)
-            crs=src.crs
-            affine_transform = src.transform 
-            bounds=src.bounds
-            main_box= box1(bounds[0],bounds[1],bounds[2],bounds[3])
-        crowns=gpd.read_file(shp)
-        crowns= crowns.to_crs(crs)
-        mask = crowns['geometry'].within(main_box)
-        test_crowns = crowns.loc[mask]
-        box_mod=[]
-        print("starting box transformation from utm to xy")
-        boxes=[]
-        for box in boxes:
-            xmin, ymin, xmax, ymax = box
-            x_pixel_min, y_pixel_min = ~affine_transform * (xmin, ymin)
-            x_pixel_max, y_pixel_max = ~affine_transform * (xmax, ymax)
-            trans_box=[x_pixel_min,y_pixel_max,x_pixel_max,y_pixel_min]
-            box_mod.append(trans_box)
-        print("The tile contains", len(box_mod), "polygons")
-        input_boxes=torch.tensor(box_mod, device=mask_predictor.device)
-        transformed_boxes = mask_predictor.transform.apply_boxes_torch(input_boxes, transposed_data[:,:,:3].shape[:2])
-        print("about to set the image")
-        mask_predictor.set_image(transposed_data[:,:,:3])
-        masks, scores, logits= mask_predictor.predict_torch(point_coords=None,
-            point_labels=None,boxes=transformed_boxes, multimask_output=True,)
-        
-        print("finish predicting now getting the utms for transformation")
-        height, width, num_bands = transposed_data.shape
-        utm_coordinates_and_values = np.empty((height, width, num_bands + 2))
-        utm_transform = src.transform
-       
-        y_coords, x_coords = np.meshgrid(np.arange(height), np.arange(width), indexing='ij')
-        utm_x, utm_y = rasterio.transform.xy(utm_transform, y_coords, x_coords)
-        utm_coordinates_and_values[..., 0] = utm_x
-        utm_coordinates_and_values[..., 1] = utm_y
-        utm_coordinates_and_values[..., 2:] = transposed_data[..., :num_bands]
-
-        all_polygons=[]
-        for idx, (thisscore, thiscrown) in enumerate(zip(scores, masks)):
-            maxidx=thisscore.tolist().index(max(thisscore.tolist()))
-            thiscrown = thiscrown[maxidx]
-            score=scores[1].tolist()[thisscore.tolist().index(max(thisscore.tolist()))]   
-            mask = thiscrown.squeeze()
-            utm_coordinates = utm_coordinates_and_values[:, :, :2]
-            mask_np = mask.cpu().numpy().astype(np.uint8)
-            contours, _ = cv2.findContours(mask_np, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            polygons = []
-            areas = []
-            for contour in contours:
-                contour_coords = contour.squeeze().reshape(-1, 2)
-                contour_utm_coords = utm_coordinates[contour_coords[:, 1], contour_coords[:, 0]]
-                if len(contour_utm_coords) >= 3:
-                    polygon = Polygon(contour_utm_coords)
-                    area = polygon.area
-                    polygons.append(polygon)
-                    areas.append(area)       
-            if len(areas) == 0:
-                print(f"No valid areas found for this crown. Skipping.")
-                continue  
-            largest_index = np.argmax(areas)
-            gdf = gpd.GeoDataFrame(geometry=[polygons[largest_index]])
-            gdf['area'] = areas[largest_index]
-            gdf['score'] = score 
-            gdf.crs = src.crs
-            tag_value = test_crowns.iloc[idx]['tag']
-            global_id= test_crowns.iloc[idx]['GlobalID']
-            gdf['tag']=tag_value
-            gdf['GlobalID']=global_id
-            all_polygons.append(gdf)
-        print("finish segmenting tile")
-#this function takes a shapefile with polygons and removes the overlapping polygons, it also removes the multipolygons.
-#the functions tries to terminate the while loop earlier when there is no more overlap but sometimes it does not terminate and for that the counter
-#to end the loop after 10 iterations
-def crown_avoid(dir_out2):
-    crown_avoidance= gpd.read_file(dir_out2)
-    crown_avoidance['geometry'] = crown_avoidance.geometry.buffer(0)
-
-    overlapping_crowns = crown_avoidance[crown_avoidance.apply(lambda row: crown_avoidance.loc[crown_avoidance.index != row.name].within(row.geometry).any(), axis=1)]
-    if not overlapping_crowns.empty:
-        print("There are overlapping crowns.")
-        overlaps_exist = True
-    else:
-        print("There are no overlapping crowns.")
-        overlaps_exist = False
-
-    #ideally while loop should stop when there is no more overlapping crowns, however it doest not stop
-    #The counter is a temporary solution for crown avoidance but it is not ideal
-    counter = 0
-    while overlaps_exist:
-        counter += 1
-        for idx, crown in crown_avoidance.iterrows():
-                    adjacent = crown_avoidance[(crown_avoidance.geometry.intersects(crown['geometry'])) & (crown_avoidance.index != idx)]
-                    if adjacent.empty:
-                        continue
-                    else:
-                        for adj_idx, adj_crown in adjacent.iterrows():
-                            overlap_area_a_to_b = crown['geometry'].intersection(adj_crown['geometry']).area
-                            overlap_area_b_to_a = adj_crown['geometry'].intersection(crown['geometry']).area
-                            overlap_percentage_a_to_b = (overlap_area_a_to_b / crown['geometry'].area) * 100
-                            overlap_percentage_b_to_a = (overlap_area_b_to_a / adj_crown['geometry'].area) * 100
-
-                            if overlap_percentage_a_to_b > overlap_percentage_b_to_a:
-                                # Adjust the areas
-                                crown_avoidance.loc[idx, 'geometry'] = crown['geometry'].union(adj_crown['geometry'].intersection(crown['geometry']))
-                                crown_avoidance.loc[adj_idx, 'geometry'] = adj_crown['geometry'].difference(crown['geometry'].intersection(adj_crown['geometry']))
-                                print("adjusted crown case a", idx)
-                            elif overlap_percentage_b_to_a > overlap_percentage_a_to_b:
-                                # Adjust the areas
-                                crown_avoidance.loc[adj_idx, 'geometry'] = adj_crown['geometry'].union(crown['geometry'].intersection(adj_crown['geometry']))
-                                crown_avoidance.loc[idx, 'geometry'] = crown['geometry'].difference(adj_crown['geometry'].intersection(crown['geometry']))
-                                print("adjusted crown case b", adj_idx)
-                            else:
-                                continue
-                    
-
-        for index, row in crown_avoidance.iterrows():
-                            if isinstance(row.geometry, MultiPolygon):
-                                print("found one multipolygon")
-                                multi_polygon = row.geometry 
-                                polygons = []
-                                for polygon in multi_polygon.geoms:
-                                    polygons.append(polygon)
-                                largest_polygon = max(polygons, key=lambda polygon: polygon.area)
-                                crown_avoidance.at[index, 'geometry'] = largest_polygon
-                            else:
-                                continue
-        
-        overlapping_crowns = crown_avoidance[crown_avoidance.apply(lambda row: crown_avoidance.loc[crown_avoidance.index != row.name].within(row.geometry).any(), axis=1)]
-
-        if overlapping_crowns.empty:
-            print("There are no overlapping crowns.")
-            overlaps_exist = False
-        else:
-            print("There are overlapping crowns.")
-            overlaps_exist = True
-        
-        all_adjacents_empty = all(crown_avoidance[(crown_avoidance.geometry.intersects(crown['geometry'])) & (crown_avoidance.index != idx)].empty for idx, crown in crown_avoidance.iterrows())
-        if counter >= 10:
-            print("Reached 10 iterations, terminating loop.")
-            break
-    return crown_avoidance
-
-
-def crown_avoid(dir_out2):
-    crown_avoidance = gpd.read_file(dir_out2)
-    crown_avoidance['geometry'] = crown_avoidance.geometry.buffer(0)
-    
-    # Create a spatial index
-    sindex = crown_avoidance.sindex
-    
-    overlaps_exist = True
-    counter = 0
-    
-    while overlaps_exist and counter < 10:
-        overlaps_exist = False
-        for idx, crown in crown_avoidance.iterrows():
-            # Use spatial index to find potential overlaps
-            possible_overlaps_index = list(sindex.intersection(crown['geometry'].bounds))
-            possible_overlaps = crown_avoidance.iloc[possible_overlaps_index]
-            actual_overlaps = possible_overlaps[possible_overlaps.geometry.intersects(crown['geometry']) & (possible_overlaps.index != idx)]
-            
-            for adj_idx, adj_crown in actual_overlaps.iterrows():
-                # Simplify overlap resolution logic
-                if crown['geometry'].area > adj_crown['geometry'].area:
-                    # Adjust smaller polygon
-                    crown_avoidance.loc[adj_idx, 'geometry'] = adj_crown['geometry'].difference(crown['geometry'])
-                else:
-                    # Adjust current polygon
-                    crown_avoidance.loc[idx, 'geometry'] = crown['geometry'].difference(adj_crown['geometry'])
-                overlaps_exist = True
-        
-        # Check for MultiPolygons and adjust
-        for index, row in crown_avoidance.iterrows():
-            if isinstance(row.geometry, MultiPolygon):
-                largest_polygon = max(row.geometry, key=lambda polygon: polygon.area)
-                crown_avoidance.at[index, 'geometry'] = largest_polygon
-        
-        counter += 1
-        if not overlaps_exist:
-            print("There are no overlapping crowns.")
-        else:
-            print("There are overlapping crowns.")
-    
-    if counter >= 10:
-        print("Reached 10 iterations, terminating loop.")
-    
-    return crown_avoidance
-#set mask predictor, mask predictor working with cpu
-MODEL_TYPE = "vit_h"
-checkpoint = r"C:\Users\VasquezV\repo\crown-segment\models\sam_vit_h_4b8939.pth"
-device = 'cuda'
-sam = sam_model_registry[MODEL_TYPE](checkpoint=checkpoint)
-#sam.to(device=device)  #requires cuda cores
-mask_predictor = SamPredictor(sam)
-
-#Working directory
-wd_path= r"D:\BCI_50ha"
-BCI_2022_raw= os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_raw.shp")
-
-#open the shapefile
-import uuid
-crownmap2022=gpd.read_file(BCI_2022_raw)
-crownmap2022["GlobalID"] = [uuid.uuid4() for _ in range(len(crownmap2022))]
-crownmap2022["GlobalID"] = crownmap2022["GlobalID"].astype(str)
-
-orthomosaics=os.listdir(os.path.join(wd_path,"Product_local2"))
-tile_folder= os.path.join(wd_path,"tiles")
-os.makedirs(tile_folder, exist_ok=True)
-
-tile_ortho(os.path.join(wd_path,"Product_local2",orthomosaics[3]),100,30,tile_folder)
-crown_segment(tile_folder,crownmap2022,os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_segmented.shp"))                                                    
-
-#lets do a comparison of the segmented crowns to original crowns
-crownmap2022_improved=gpd.read_file(os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_segmented.shp"))
-
-#calulate intersection over union
-for index, crown in crownmap2022_improved.iterrows():
-    crown_original = crownmap2022[crownmap2022["GlobalID"] == crown["GlobalID"]].iloc[0]
-    intersection = crown.geometry.intersection(crown_original.geometry)
-    union = crown.geometry.union(crown_original.geometry)
-    iou = intersection.area / union.area if union.area > 0 else 0
-    crownmap2022_improved.loc[index, "iou"] = iou
-
-
-#histogram of iou
-plt.hist(crownmap2022_improved["iou"], bins=20)
-plt.xlabel("IoU")
-plt.ylabel("Frequency")
-plt.title("Histogram of IoU")
-plt.show()
-
-crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_segmented.shp"))
-
-
-#remove overlapping crowns
 def crown_avoid(dir):
     crown_avoidance = gpd.read_file(dir)
     crown_avoidance['geometry'] = crown_avoidance.geometry.buffer(0)
@@ -454,95 +217,87 @@ def crown_avoid(dir):
 
     return crown_avoidance
 
-crown_avoidance = crown_avoid(os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_segmented.shp"))
-crown_avoidance.to_file(os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_avoid.shp"))
+MODEL_TYPE = "vit_h"
+checkpoint = r"/home/vasquezv/BCI_50ha/aux_files/sam_vit_h_4b8939.pth"
+device = 'cuda'
+sam = sam_model_registry[MODEL_TYPE](checkpoint=checkpoint)
+#sam.to(device=device)  #requires cuda cores
+mask_predictor = SamPredictor(sam)
+
+#Working directory
+wd_path= r"/home/vasquezv/BCI_50ha"
+BCI_2022_raw= os.path.join(wd_path,"crownmap/BCI_50ha_2022_2023_crownmap_raw.shp")
+
+#open the shapefile
+crownmap2022=gpd.read_file(BCI_2022_raw)
+crownmap2022["GlobalID"] = [uuid.uuid4() for _ in range(len(crownmap2022))]
+crownmap2022["GlobalID"] = crownmap2022["GlobalID"].astype(str)
+
+orthomosaics=os.listdir(os.path.join(wd_path,"Product_local2"))
+tile_folder= os.path.join(wd_path,"tiles")
+os.makedirs(tile_folder, exist_ok=True)
 
 
-def crown_avoid(dir_out2):
-    crown_avoidance= gpd.read_file(dir_out2)
-    crown_avoidance['geometry'] = crown_avoidance.geometry.buffer(0)
 
-    overlapping_crowns = crown_avoidance[crown_avoidance.apply(lambda row: crown_avoidance.loc[crown_avoidance.index != row.name].within(row.geometry).any(), axis=1)]
-    if not overlapping_crowns.empty:
-        print("There are overlapping crowns.")
-        overlaps_exist = True
-    else:
-        print("There are no overlapping crowns.")
-        overlaps_exist = False
+#The first 3 dates are important since they should be compared to the reference and and not to the avoided crown map
+#2022_09_29
+#segmentation
+tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_09_29_aligned_local2.tif"),100,30,tile_folder)
+crown_segment(tile_folder,crownmap2022,os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp"))                                                    
+crownmap_improved=gpd.read_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp"))
 
-    #ideally while loop should stop when there is no more overlapping crowns, however it doest not stop
-    #The counter is a temporary solution for crown avoidance but it is not ideal
-    counter = 0
-    while overlaps_exist:
-        counter += 1
-        for idx, crown in crown_avoidance.iterrows():
-                    adjacent = crown_avoidance[(crown_avoidance.geometry.intersects(crown['geometry'])) & (crown_avoidance.index != idx)]
-                    if adjacent.empty:
-                        continue
-                    else:
-                        for adj_idx, adj_crown in adjacent.iterrows():
-                            overlap_area_a_to_b = crown['geometry'].intersection(adj_crown['geometry']).area
-                            overlap_area_b_to_a = adj_crown['geometry'].intersection(crown['geometry']).area
-                            overlap_percentage_a_to_b = (overlap_area_a_to_b / crown['geometry'].area) * 100
-                            overlap_percentage_b_to_a = (overlap_area_b_to_a / adj_crown['geometry'].area) * 100
+#filter repeated crowns
+for index, crown in crownmap_improved.iterrows():
+    crown_original = crownmap2022[crownmap2022["GlobalID"] == crown["GlobalID"]].iloc[0]
+    intersection = crown.geometry.intersection(crown_original.geometry)
+    union = crown.geometry.union(crown_original.geometry)
+    iou = intersection.area / union.area if union.area > 0 else 0
+    crownmap_improved.loc[index, "iou"] = iou
 
-                            if overlap_percentage_a_to_b > overlap_percentage_b_to_a:
-                                # Adjust the areas
-                                crown_avoidance.loc[idx, 'geometry'] = crown['geometry'].union(adj_crown['geometry'].intersection(crown['geometry']))
-                                crown_avoidance.loc[adj_idx, 'geometry'] = adj_crown['geometry'].difference(crown['geometry'].intersection(adj_crown['geometry']))
-                                print("adjusted crown case a", idx)
-                            elif overlap_percentage_b_to_a > overlap_percentage_a_to_b:
-                                # Adjust the areas
-                                crown_avoidance.loc[adj_idx, 'geometry'] = adj_crown['geometry'].union(crown['geometry'].intersection(adj_crown['geometry']))
-                                crown_avoidance.loc[idx, 'geometry'] = crown['geometry'].difference(adj_crown['geometry'].intersection(crown['geometry']))
-                                print("adjusted crown case b", adj_idx)
-                            else:
-                                continue
-                    
+crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
+crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp"))
 
-        for index, row in crown_avoidance.iterrows():
-                            if isinstance(row.geometry, MultiPolygon):
-                                print("found one multipolygon")
-                                multi_polygon = row.geometry 
-                                polygons = []
-                                for polygon in multi_polygon.geoms:
-                                    polygons.append(polygon)
-                                largest_polygon = max(polygons, key=lambda polygon: polygon.area)
-                                crown_avoidance.at[index, 'geometry'] = largest_polygon
-                            else:
-                                continue
-        
-        overlapping_crowns = crown_avoidance[crown_avoidance.apply(lambda row: crown_avoidance.loc[crown_avoidance.index != row.name].within(row.geometry).any(), axis=1)]
+#crown avoidance
+crownmap_avoidance = crown_avoid(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp"))
+crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_avoid.shp"))
 
-        if overlapping_crowns.empty:
-            print("There are no overlapping crowns.")
-            overlaps_exist = False
-        else:
-            print("There are overlapping crowns.")
-            overlaps_exist = True
-        
-        all_adjacents_empty = all(crown_avoidance[(crown_avoidance.geometry.intersects(crown['geometry'])) & (crown_avoidance.index != idx)].empty for idx, crown in crown_avoidance.iterrows())
-        if counter >= 10:
-            print("Reached 10 iterations, terminating loop.")
-            break
-    return crown_avoidance
-    
+#2022_10_27
+tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_10_27_aligned_local2.tif"),100,30,tile_folder)
+crown_segment(tile_folder,crownmap2022,os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
+crownmap_improved=gpd.read_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
+for index, crown in crownmap_improved.iterrows():
+    crown_original = crownmap2022[crownmap2022["GlobalID"] == crown["GlobalID"]].iloc[0]
+    intersection = crown.geometry.intersection(crown_original.geometry)
+    union = crown.geometry.union(crown_original.geometry)
+    iou = intersection.area / union.area if union.area > 0 else 0
+    crownmap_improved.loc[index, "iou"] = iou
+crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
+crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
+crownmap_avoidance = crown_avoid(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp"))
+crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_avoid.shp"))
 
-adjusted_crowns = crown_avoid(os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_segmented.shp")) 
-adjusted_crowns.to_file(os.path.join(wd_path,"crownmap\BCI_50ha_2022_2023_crownmap_avoid.shp"))
+#2022_08_24
+tile_ortho(os.path.join(wd_path,"Product_local2","BCI_50ha_2022_08_24_aligned_local2.tif"),100,30,tile_folder)
+crown_segment(tile_folder,crownmap2022,os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
+crownmap_improved=gpd.read_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
+for index, crown in crownmap_improved.iterrows():
+    crown_original = crownmap2022[crownmap2022["GlobalID"] == crown["GlobalID"]].iloc[0]
+    intersection = crown.geometry.intersection(crown_original.geometry)
+    union = crown.geometry.union(crown_original.geometry)
+    iou = intersection.area / union.area if union.area > 0 else 0
+    crownmap_improved.loc[index, "iou"] = iou
+crownmap2022_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
+crownmap2022_improved.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
+crownmap_avoidance = crown_avoid(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp"))
+crownmap_avoidance.to_file(os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_avoid.shp"))
 
-
-#lets create a list of the dates, and work from dates and not from a list
-dates= os.listdir(r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\Product_local2")
+#Get the names of the orthomosaic files
+dates= os.listdir(os.path.join(wd_path,"Product_local2"))
 dates= [date for date in dates if date.endswith(".tif")]
 info_ortho=pd.DataFrame(columns=["filename","ortho_path"])
 info_ortho["filename"]=dates
-info_ortho["ortho_path"]=info_ortho["filename"].apply(lambda x: os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\Product_local2",x))
+info_ortho["ortho_path"]=info_ortho["filename"].apply(lambda x: os.path.join(wd_path,"Product_local2",x))
 info_ortho['date'] = info_ortho['filename'].apply(lambda x: "_".join(x.split("_")[2:5]))
-
-info_ortho.loc[info_ortho['date'] == '2022_07_27',"ortho_path"].values[0]
-
-
 
 #reference files
 date_reference= info_ortho.loc[48].values[2]
@@ -565,7 +320,7 @@ for i in range(47, -1, -1):
     crownmap_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
     crownmap_improved.to_file(crownmap_out)
     crownmap_avoidance = crown_avoid(crownmap_out)
-    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoidance.shp"))
+    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoid.shp"))
     crownmap_reference = crownmap_out
     date_reference = date
 
@@ -589,8 +344,8 @@ for i in range(51,106,1):
     crownmap_improved = crownmap_improved.sort_values("iou", ascending=False).drop_duplicates("GlobalID", keep="first")
     crownmap_improved.to_file(crownmap_out)
     crownmap_avoidance = crown_avoid(crownmap_out)
-    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoidance.shp"))
+    crownmap_avoidance.to_file(crownmap_out.replace("_crownmap_segmented.shp","_crownmap_avoid.shp"))
     crownmap_reference = crownmap_out
     date_reference = date
-    
+
 

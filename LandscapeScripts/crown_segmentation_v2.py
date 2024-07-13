@@ -286,16 +286,16 @@ print(info_ortho)
 
 
 #reference1 2022_09_29
-#crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp")
-#process_crown_data(wd_path, tile_folder, crownmap2022, info_ortho.loc[49].values[1],crownmap_out)
+crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_09_29_crownmap_segmented.shp")
+process_crown_data(wd_path, tile_folder, crownmap2022, info_ortho.loc[49].values[1],crownmap_out)
 
 #reference2 2022_08_24
-#crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp")
-#process_crown_data(wd_path, tile_folder, crownmap2022, info_ortho.loc[48].values[1],crownmap_out)
+crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_08_24_crownmap_segmented.shp")
+process_crown_data(wd_path, tile_folder, crownmap2022, info_ortho.loc[48].values[1],crownmap_out)
 
 #reference3 2022_10_27
-#crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp")
-#process_crown_data(wd_path, tile_folder, crownmap2022, info_ortho.loc[50].values[1],crownmap_out)
+crownmap_out =os.path.join(wd_path,"crownmap/BCI_50ha_2022_10_27_crownmap_segmented.shp")
+process_crown_data(wd_path, tile_folder, crownmap2022, info_ortho.loc[50].values[1],crownmap_out)
 
 
 #process the crowns
@@ -321,7 +321,7 @@ print(date_reference)
 crownmap_reference= info_ortho.loc[50].values[1].replace("Product_local2","crownmap").replace("_aligned_local2.tif","_crownmap_segmented.shp")
 print(crownmap_reference)
 
-for i in range(51, -1, -1):
+for i in range(51, 106, 1):
         ortho=info_ortho.loc[i].values[1]
         print(ortho)
         date=info_ortho.loc[i].values[2]
@@ -330,7 +330,7 @@ for i in range(51, -1, -1):
         print(crownmap_out)
         process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, crownmap_out)
         crownmap_reference=crownmap_out
-        date_reference=date
+        
 
 
 
