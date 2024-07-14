@@ -330,6 +330,7 @@ for i in range(51, 106, 1):
         print(crownmap_out)
         process_crown_data(wd_path, tile_folder, crownmap_reference, ortho, crownmap_out)
         crownmap_reference=crownmap_out
+        date_reference=date
         
 
 
