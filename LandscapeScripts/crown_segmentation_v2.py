@@ -11,11 +11,14 @@ from shapely.geometry import Polygon, MultiPolygon
 from shapely.geometry import box as box1
 from matplotlib.patches import Rectangle
 import time 
+from shapely.geometry import Polygon, GeometryCollection
+from shapely.ops import transform
 #AI
 from segment_anything import SamPredictor
 from segment_anything import sam_model_registry
 import torch
 #rasterio functions
+from
 from rasterio.features import rasterize
 from rasterio.windows import Window
 from rasterio.transform import from_origin
@@ -191,11 +194,9 @@ def crown_segment(tile_folder,shp,output_shapefile):
 def crown_avoid(dir):
     crown_avoidance = gpd.read_file(dir)
     crown_avoidance['geometry'] = crown_avoidance.geometry.buffer(0)
-    
-    # Pre-process to handle MultiPolygons
+
     for index, row in crown_avoidance.iterrows():
         if isinstance(row.geometry, MultiPolygon):
-            print("found one multipolygon")
             multi_polygon = row.geometry
             polygons = [polygon for polygon in multi_polygon.geoms]
             largest_polygon = max(polygons, key=lambda polygon: polygon.area)
@@ -203,7 +204,6 @@ def crown_avoid(dir):
 
     sindex = crown_avoidance.sindex
     modifications = {}  # Dictionary to collect modifications
-
     for idx, polygon in crown_avoidance.iterrows():
         possible_matches_index = list(sindex.intersection(polygon['geometry'].bounds))
         possible_matches = crown_avoidance.iloc[possible_matches_index]
@@ -211,28 +211,32 @@ def crown_avoid(dir):
         if adjacents.empty:
             continue
         else:
-            print("found adjacents", adjacents["tag"])
             for adj_idx, adj_polygon in adjacents.iterrows():
                 if polygon.geometry.area > adj_polygon.geometry.area:
                     modifications[idx] = modifications.get(idx, polygon.geometry).difference(adj_polygon.geometry)
                 elif polygon.geometry.area < adj_polygon.geometry.area:
                     modifications[adj_idx] = modifications.get(adj_idx, adj_polygon.geometry).difference(polygon.geometry)
-
-    # Apply collected modifications
     for idx, new_geom in modifications.items():
         crown_avoidance.at[idx, 'geometry'] = new_geom
-
-    #POST PROCESS THE MUTLIPOLYGONS
-    # Pre-process to handle MultiPolygons
     for index, row in crown_avoidance.iterrows():
         if isinstance(row.geometry, MultiPolygon):
-            print("found one multipolygon")
             multi_polygon = row.geometry
             polygons = [polygon for polygon in multi_polygon.geoms]
             largest_polygon = max(polygons, key=lambda polygon: polygon.area)
             crown_avoidance.at[index, 'geometry'] = largest_polygon
 
+    for index, row in crown_avoidance.iterrows():
+        geom = row["geometry"]
+        if isinstance(geom, GeometryCollection):
+            polygons = [g for g in geom.geoms if isinstance(g, Polygon)]
+            if polygons:
+                crown_avoidance.at[index, "geometry"] = polygons[0]
+            else:
+                crown_avoidance.at[index, "geometry"] = pd.NA
+        elif not isinstance(geom, Polygon):
+            crown_avoidance.at[index, "geometry"] = pd.NA
     return crown_avoidance
+
 
 def process_crown_data(wd_path, tile_folder, reference, ortho, out_segmented):
     # Tile the orthophoto
@@ -334,4 +338,90 @@ for i in range(51, 106, 1):
         
 
 
+#list shps in the folder
+wd_path=r"D:\BCI_50ha"
+shps= os.listdir(os.path.join(wd_path,"crownmap"))
+shps= [shp for shp in shps if shp.endswith(".shp")]
+len(shps)
+for shp in shps:
+    try:
+        print(shp)
+        crownmap = crown_avoid(os.path.join(wd_path, "crownmap", shp))
+        crownmap
+        crownmap.to_file(os.path.join(wd_path, "crownmap", shp.replace("segmented", "avoided")))
+        print("done")
+    except Exception as e:
+        print(f"Error processing {shp}: {e}")
+        continue
+
+#list shps in the folder that end with avoided
+shps= os.listdir(os.path.join(wd_path,"crownmap"))
+shps= [shp for shp in shps if shp.endswith("avoided.shp")]
+
+all_gdfs = []
+for shp in shps: 
+    date=shp.split("_")[2:5]
+    date="_".join(date)
+    print(date)
+    thishp=gpd.read_file(os.path.join(wd_path,"crownmap",shp))
+    thishp["date"]=date
+    all_gdfs.append(thishp)
+
+all_gdfs = pd.concat(all_gdfs, ignore_index=True)
+# i need the latin from raw
+latin= gpd.read_file(os.path.join(wd_path,"backup","BCI_50ha_2022_2023_crownmap_raw.shp"))
+latin["GlobalID"]
+all= all_gdfs.merge(latin[["GlobalID","latin"]], on="GlobalID", how="left")
+all.to_file(os.path.join(wd_path,"BCI_50ha_crownmap_timeseries.shp"))
+
+#i want to plot area vs date for the first index
+wd_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
+os.makedirs(os.path.join(wd_path,"segmented_crowns"), exist_ok=True)
+all=all.sort_values("date")
+
+unique_identifiers= all["GlobalID"].unique()
+
+for identifier in unique_identifiers:
+    print(f"Processing crown {identifier}")
+    crown_data = all[all["GlobalID"] == identifier]
+    main_box = box1(crown_data.total_bounds[0] - 5, crown_data.total_bounds[1] - 5, crown_data.total_bounds[2] + 5, crown_data.total_bounds[3] + 5)
+
+    latin_name = crown_data.iloc[0]["latin"]
+    if not latin_name or isinstance(latin_name, float):
+        crown_sp1 = "unknown"
+        crown_sp2 = "unknown"
+    else:
+        latin_parts = latin_name.split(" ")
+        crown_sp1 = latin_parts[0] if len(latin_parts) > 0 else "unknown"
+        crown_sp2 = latin_parts[1] if len(latin_parts) > 1 else "unknown"
+    
+    tag = crown_data.iloc[0]["tag"]
+    if tag == '000000':
+        tag = crown_data.iloc[0]["GlobalID"]
+    folder_out_crown = os.path.join(wd_path, "segmented_crowns", f"{crown_sp1}_{crown_sp2}_{tag}")
+    os.makedirs(folder_out_crown, exist_ok=True)
+    
+    for date in crown_data["date"]:
+        output_file_path = os.path.join(folder_out_crown, f"{date}.png")
+        if os.path.exists(output_file_path):
+            print(f"File {output_file_path} already exists. Skipping...")
+            continue  # Skip the rest of the loop if file exists
+        
+        geom = crown_data[crown_data["date"] == date].iloc[0]["geometry"]
+        with rasterio.open(os.path.join(wd_path, "Product_local2", f"BCI_50ha_{date}_aligned_local2.tif")) as src:
+            out_image, out_transform = rasterio.mask.mask(src, [main_box], crop=True)
+            out_meta = src.meta.copy()
+            x_min, y_min = out_transform * (0, 0)
+            xres, yres = out_transform[0], out_transform[4]
+            transformed_geom = transform(lambda x, y: ((x - x_min) / xres, (y - y_min) / yres), geom)
+            fig, ax = plt.subplots(figsize=(10, 10))
+            ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
+            ax.plot(*transformed_geom.exterior.xy, color='red')
+            for interior in transformed_geom.interiors:
+                ax.plot(*interior.xy, color='red')
+            ax.axis('off')
+            fig.savefig(output_file_path, bbox_inches='tight', pad_inches=0)
+
+
+all["latin"].unique()
 

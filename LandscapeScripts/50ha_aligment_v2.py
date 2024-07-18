@@ -50,6 +50,7 @@ for product in product_list:
         print(f"Skipping {product} because it already exists")
 
 #GLOBAL ALIGNMENT
+
 reference1= os.path.join(cropped_path, ortho_list[69])
 print("the referece is", reference1)
 shutil.copy(reference1,os.path.join(wd_path,"Product_global", ortho_list[69]).replace("orthomosaic.tif","aligned_global.tif"))
