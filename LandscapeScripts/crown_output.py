@@ -74,6 +74,7 @@ for identifier in unique_identifiers:
                 ax.plot(*interior.xy, color='red')
             ax.axis('off')
             fig.savefig(output_file_path, bbox_inches='tight', pad_inches=0)
+            plt.close(fig)
 
 
 
