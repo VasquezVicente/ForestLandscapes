@@ -1,4 +1,5 @@
 import os   #archivos del sistema
+import Metashape.Metashape
 import pandas as pd   #data frames
 import shutil   #copiar y mover archivos
 import Metashape #fotgrametria
@@ -120,6 +121,9 @@ proj = Metashape.OrthoProjection()
 proj.crs=Metashape.CoordinateSystem("EPSG::32617")
 doc.save()
 
+compression = Metashape.ImageCompression()
+compression.tiff_big = True
+
 #chunk calibrate reflectance
 
 chunk.exportReport(dest.replace('medium','report').replace('.psx','.pdf'))
@@ -139,8 +143,16 @@ if chunk.point_cloud:
 if chunk.elevation:
             chunk.exportRaster(os.path.join(folder_dsm,mission.replace("M3E","dsm.tif")), source_data = Metashape.ElevationData,projection= proj)
 if chunk.orthomosaic:
-            options = {'format': 'BigTIFF'}
-            chunk.exportRaster(os.path.join(folder_orthomosaic,mission.replace("M3E","orthomosaic.tif")), source_data = Metashape.OrthomosaicData,projection= proj)
+            chunk.exportRaster(os.path.join(folder_orthomosaic,mission.replace("M3E","orthomosaic.tif")), source_data = Metashape.OrthomosaicData,projection= proj,image_compression = compression)
+                               
 
 print('Processing finished')
+
+
+
+doc = Metashape.Document()
+doc.open(dest)
+chunk = doc.chunk
+
+    
 

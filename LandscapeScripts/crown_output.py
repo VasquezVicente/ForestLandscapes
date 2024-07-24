@@ -66,15 +66,18 @@ for identifier in unique_identifiers:
             out_meta = src.meta.copy()
             x_min, y_min = out_transform * (0, 0)
             xres, yres = out_transform[0], out_transform[4]
-            transformed_geom = transform(lambda x, y: ((x - x_min) / xres, (y - y_min) / yres), geom)
-            fig, ax = plt.subplots(figsize=(10, 10))
-            ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
-            ax.plot(*transformed_geom.exterior.xy, color='red')
-            for interior in transformed_geom.interiors:
-                ax.plot(*interior.xy, color='red')
-            ax.axis('off')
-            fig.savefig(output_file_path, bbox_inches='tight', pad_inches=0)
-            plt.close(fig)
+            if geom is None:
+                print("Error: geom is None. Cannot proceed with transformation.")
+            else:
+                transformed_geom = transform(lambda x, y: ((x - x_min) / xres, (y - y_min) / yres), geom)
+                fig, ax = plt.subplots(figsize=(10, 10))
+                ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
+                ax.plot(*transformed_geom.exterior.xy, color='red')
+                for interior in transformed_geom.interiors:
+                    ax.plot(*interior.xy, color='red')
+                ax.axis('off')
+                fig.savefig(output_file_path, bbox_inches='tight', pad_inches=0)
+                plt.close(fig)
 
 
 
