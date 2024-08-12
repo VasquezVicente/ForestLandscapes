@@ -3,7 +3,14 @@ import pandas as pd   #data frames
 import shutil   #copiar y mover archivos
 
 #mavic flight main folders
-images_dir=r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\2024\BCI_50ha_2024_05_07_M3E"
+
+input_year= input("Enter the year of the flight: ")
+missions= os.listdir(r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\{}".format(input_year))
+for i in range(len(missions)):
+    print(f'{i+1}. {missions[i]}')
+input_mission= input("Enter the mission number: ")
+images_dir=r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\{}\{}".format(input_year,missions[int(input_mission)-1])
+print(images_dir)
 path=os.path.dirname(images_dir)
 mission=os.path.basename(images_dir)
 folders = [folder for folder in os.listdir(images_dir) if folder.startswith('DJI') and os.path.isdir(os.path.join(images_dir, folder))]
