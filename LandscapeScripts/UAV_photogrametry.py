@@ -4,6 +4,7 @@ import Metashape
 import re
 import time
 
+#for image folders that have a set of images selected. all images within folder must be good and usables , this means no extra images
 def process_drone_images(images_dir):
       start_time = time.time()
       doc = Metashape.Document()
@@ -99,7 +100,7 @@ def reexport_cloud(project_dir):
 
 def process_project(project_dir):
     doc= Metashape.Document()
-    doc.open(project_dir)
+    doc.open(project_dir, read_only=False)
     chunk = doc.chunk
     doc.save()
     out_crs = Metashape.CoordinateSystem("EPSG::32617")
@@ -169,9 +170,6 @@ def reexport_ortho(project_dir):
     print(cloud_path)
     chunk.exportRaster(cloud_path, source_data = Metashape.OrthomosaicData,projection= proj,image_compression = compression)
 
-
-reexport_cloud(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2021\BCI_p14_2021_12_28_P4P\Project\BCI_p14_2021_12_28_medium.psx")
-
 def export_products(project_dir):
       project_dir=r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2013\BCI_50ha_2013_06_11_DR1_m1\Project\BCI_50ha_2013_06_11_medium.psx"
       doc = Metashape.Document()
@@ -217,3 +215,6 @@ def export_products(project_dir):
             chunk.exportRaster(ortho_path, source_data = Metashape.OrthomosaicData,projection= proj,image_compression = compression)
 
       print('Processing finished')
+
+process_project(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2016\BCI_50ha_2016_04_06_SOLO\Project\BCI_50ha_2016_04_06_medium.psx")
+process_project(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2016\BCI_25ha_2016_12_23_EBEE2\Project\BCI_25ha_2016_12_23_medium.psx")

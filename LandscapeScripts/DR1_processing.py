@@ -2,7 +2,7 @@ import os
 import shutil
 
 
-path=r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\2015\BCI_50ha_2015_01_23_DR1_m1\pics"
+path=r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\2015\BCI_50ha_2015_02_11_DR1_m1\pics"
 
 listdirs=os.listdir(path)
 #move all contents of the subdir to the parent dir

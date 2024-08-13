@@ -1,5 +1,4 @@
 import os   #archivos del sistema
-import Metashape.Metashape
 import pandas as pd   #data frames
 import shutil   #copiar y mover archivos
 import Metashape #fotgrametria
@@ -36,7 +35,7 @@ for mission_number in mission_numbers:
     path = os.path.dirname(images_dir)
     folders = [folder for folder in os.listdir(images_dir) if folder.startswith('DJI') and os.path.isdir(os.path.join(images_dir, folder))]
 
-    if ppk_avaliable==True: 
+    if ppk_avaliable==True:   
         #metashape original images
         mission= "_".join(mission.split('_')[0:4])
         dest=os.path.join(images_dir.replace('Raw','Products'),"Project",mission+"_medium.psx") #proyecto de metashape en la carpeta de productos

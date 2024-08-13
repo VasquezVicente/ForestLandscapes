@@ -192,3 +192,106 @@ for PLOT in plots:
 met= pd.concat(metadata_all, ignore_index=True)
 met.to_csv(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\metadata_all.csv", index=False)
 
+metadata_all= pd.read_csv(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\metadata_all.csv")
+
+metadata_all= metadata_all[['product','site', 'plot', 'year', 'month', 'day','drone','drone_long', 'sensor','type', 'driver',
+                             'xmin', 'xmax', 'ymin', 'ymax', 'dtype', 'nodata', 'width', 'height', 'count','transform', 
+        'scale_x', 'shear_x', 'translate_x',
+       'shear_y', 'scale_y', 'translate_y', 'point_n', 'zmin', 'zmax',
+       'scale_z', 'offset_x', 'offset_y', 'offset_z', 'las_version',
+       'dimensions','crs']]
+metadata_all.columns
+metadata_all.to_csv(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\metadata_all.csv", index=False)
+
+metadata_all[metadata_all['type']=='orthomosaic']
+metadata_all[metadata_all['type']=='dsm']
+metadata_all[metadata_all['type']=='cloud']
+
+metadata_all.columns
+metadata_all["product"].unique()
+filtered_missions_df = missions_df[missions_df['plot'].isin(plots)]
+filtered_missions_df.to_csv(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\filtered_missions.csv", index=False)
+
+metadata_all["product_temp"]= metadata_all["product"].replace("orthomosaic.tif", "orthomosaic.tif")
+
+import pandas as pd
+
+# Define the descriptions for each variable
+descriptions = {
+    "product": "The name of the data product, typically the filename of the dataset.",
+    "site": "Macro-site long name, for example Parque Natual Metropolitan, or PNNM.",
+    "plot": "A particular section or forest plot within the site where data collection took place.",
+    "year": "The year when the data was collected.",
+    "month": "The month when the data was collected.",
+    "day": "The day of the month when the data was collected.",
+    "drone": "A shorthand identifier for the drone used (e.g., P4P for DJI Phantom 4 Pro).",
+    "drone_long": "The full name or model of the drone used for data collection.",
+    "sensor": "The specific sensor or camera used to capture the data (e.g., FC6310, MAPIR).",
+    "type":"The type of data product (e.g., orthomosaic, dsm,cloud).",
+    "driver": "The software or tool used to manage or process the data files (e.g., GDAL).",
+    "xmin": "The minimum x-coordinate (longitude) in the dataset.",
+    "xmax": "The maximum x-coordinate (longitude) in the dataset.",
+    "ymin": "The minimum y-coordinate (latitude) in the dataset.",
+    "ymax": "The maximum y-coordinate (latitude) in the dataset.",
+    "dtype": "The data type of the values in the dataset (e.g., integer, float).",
+    "nodata": "The value used to represent missing or undefined data within the dataset.",
+    "width": "The width of the dataset, typically referring to the number of columns in the image or grid.",
+    "height": "The height of the dataset, typically referring to the number of rows in the image or grid.",
+    "count": "The number of layers or bands in the dataset (e.g., 4 for RGB).",
+    "transform": "A six-element affine transformation matrix that maps pixel coordinates to geographic coordinates.",
+    "scale_x": "The scaling factor applied to the x-coordinate during data transformation.",
+    "shear_x": "The shear factor applied to the x-coordinate, representing distortion or slant in the data.",
+    "translate_x": "The translation applied to the x-coordinate, shifting the data horizontally.",
+    "shear_y": "The shear factor applied to the y-coordinate, representing distortion or slant in the data.",
+    "scale_y": "The scaling factor applied to the y-coordinate during data transformation.",
+    "translate_y": "The translation applied to the y-coordinate, shifting the data vertically.",
+    "point_n": "The number points in a point cloud",
+    "zmin": "The minimum z-coordinate (elevation or height) in the dataset.",
+    "zmax": "The maximum z-coordinate (elevation or height) in the dataset.",
+    "scale_z": "The scaling factor applied to the z-coordinate during data transformation.",
+    "offset_x": "The offset applied to the x-coordinate, typically used to correct the origin point.",
+    "offset_y": "The offset applied to the y-coordinate, typically used to correct the origin point.",
+    "offset_z": "The offset applied to the z-coordinate, typically used to correct the origin point.",
+    "las_version": "The version of the LAS file format used for point clouds (e.g., 1.2, 1.4).",
+    "dimensions": "The dimensions included in the point cloud, such as X, Y, Z, intensity, etc.",
+    "crs": "The coordinate reference system used to georeference the dataset (e.g., EPSG: 32617 for UTM Zone 17N)."
+}
+
+# Create a DataFrame from the descriptions dictionary
+descriptions_df = pd.DataFrame(list(descriptions.items()), columns=["Variable", "Description"])
+
+# Save the DataFrame to a CSV file
+descriptions_df.to_csv(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\variable_descriptions.csv", index=False)
+
+print("CSV file with variable descriptions created successfully.")
+
+plots= metadata_all['plot'].unique()
+metadata_all[metadata_all['plot']==plots[0]]["xmin"].min()
+metadata_all[metadata_all['plot']==plots[0]]["xmax"].max()
+metadata_all[metadata_all['plot']==plots[0]]["ymin"].min()
+metadata_all[metadata_all['plot']==plots[0]]["ymax"].max()
+
+
+
+from pyproj import Proj, transform
+
+# Define the UTM 17N and WGS 84 projections
+utm_proj = Proj(proj='utm', zone=17, ellps='WGS84')
+wgs84_proj = Proj(proj='latlong', datum='WGS84')
+
+# Extract UTM coordinates
+num=38
+xmin_utm = metadata_all[metadata_all['site'] == "AGUASALUD"]["xmin"].min()
+xmax_utm = metadata_all[metadata_all['site'] =="AGUASALUD"]["xmax"].max()
+ymin_utm = metadata_all[metadata_all['site'] == "AGUASALUD"]["ymin"].min()
+ymax_utm = metadata_all[metadata_all['site'] =="AGUASALUD"]["ymax"].max()
+
+# Convert UTM to WGS 84
+xmin_wgs84, ymin_wgs84 = transform(utm_proj, wgs84_proj, xmin_utm, ymin_utm)
+xmax_wgs84, ymax_wgs84 = transform(utm_proj, wgs84_proj, xmax_utm, ymax_utm)
+
+print(plots[num])
+ymax_wgs84
+xmin_wgs84
+ymin_wgs84
+xmax_wgs84
