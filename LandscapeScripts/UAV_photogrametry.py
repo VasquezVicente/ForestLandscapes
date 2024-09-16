@@ -171,7 +171,6 @@ def reexport_ortho(project_dir):
     chunk.exportRaster(cloud_path, source_data = Metashape.OrthomosaicData,projection= proj,image_compression = compression)
 
 def export_products(project_dir):
-      project_dir=r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2013\BCI_50ha_2013_06_11_DR1_m1\Project\BCI_50ha_2013_06_11_medium.psx"
       doc = Metashape.Document()
       doc.open(project_dir)
       chunk = doc.chunk
@@ -216,5 +215,6 @@ def export_products(project_dir):
 
       print('Processing finished')
 
-process_project(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2016\BCI_50ha_2016_04_06_SOLO\Project\BCI_50ha_2016_04_06_medium.psx")
-process_project(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2016\BCI_25ha_2016_12_23_EBEE2\Project\BCI_25ha_2016_12_23_medium.psx")
+export_products(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2023\BCI_whole_2023_03_18_EBEE_jacaranda\Project\BCI_whole_2023_03_18_medium_jacaranda.psx")
+reexport_cloud(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2023\BCI_whole_2023_02_26_EBEE_jacaranda\Project\BCI_whole_2023_02_26_medium_jacaranda.psx")
+reexport_cloud(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2020\BCI_whole_2020_07_31_EBEE_dipteryx\Project\BCI_whole_2020_07_31_medium_dipteryx.psx")

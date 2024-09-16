@@ -36,14 +36,19 @@ plots=['metrop','p12','p14','10ha','25ha','knightlang','p18','p25','p26','p21','
         'gigantefertilizante','p06','p09','p15','75ha','alfajia2','alfajia','che','porton',
           'site16','site3031','site41','site66','site70','metrop2','senderocc','eastarea',
            'northarea','southarea','p16','p32','roubik','p27','p28']
+
+
+missions_df=missions_df[missions_df['drone']=='P4P']
+plots=['50ha']
+
 metadata_all= []
 for PLOT in plots:
     thisplot=missions_df[missions_df['plot']==PLOT]
-    print(thisplot)
-    
+    print(thisplot)    
     ortho_paths = []
     dsm_paths = []
     cloud_paths= []
+    report_paths= []
     for mission in thisplot['mission']:
         parts = mission.split("_")
         year = parts[2]
@@ -73,7 +78,58 @@ for PLOT in plots:
         else:
             cloud_path= os.path.join(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone",year, mission, "Cloudpoint", f"{mission.replace(drone, 'cloud')}.las")
         cloud_paths.append(cloud_path)
+    for mission in thisplot['mission']:
+        year= mission.split("_")[2]
+        drone= mission.split("_")[5]
+        if len(mission.split("_"))>6:
+            extra= mission.split("_")[6]
+            report_path= os.path.join(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone",year, mission, "Project", f"{mission.replace(f'_{drone}', '_report')}.pdf")
+        else:
+            report_path= os.path.join(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone",year, mission, "Project", f"{mission.replace(drone, 'report')}.pdf")
+        report_paths.append(report_path)
     # Initialize an empty list to store metadata
+    
+    
+    plot= thisplot['plot'].iloc[0]
+    os.makedirs(os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE" ,plot), exist_ok=True)
+    os.makedirs(os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE" ,plot, "Orthophoto"), exist_ok=True)
+    os.makedirs(os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE" ,plot, "DSM"), exist_ok=True)
+    os.makedirs(os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE" ,plot, "Cloudpoint"), exist_ok=True)
+    os.makedirs(os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE" ,plot, "raw_image"), exist_ok=True)
+    os.makedirs(os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE" ,plot, "report"), exist_ok=True)
+
+    for report in report_paths:
+        print(report)
+        dst= os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE" ,plot, "report", os.path.basename(report))
+        if not os.path.exists(dst):
+            shutil.copy(report, dst)
+
+    for ortho in ortho_paths:
+         print(ortho)
+         dst= os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE" ,plot, "Orthophoto", os.path.basename(ortho))
+         if not os.path.exists(dst):
+             shutil.copy(ortho, dst)
+
+    for dsm in dsm_paths:
+        print(dsm)
+        dst= os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE" ,plot, "DSM", os.path.basename(dsm))
+        if not os.path.exists(dst):
+            shutil.copy(dsm, dst)
+    
+    for cloud in cloud_paths:
+        print(cloud)
+        dst= os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE" ,plot, "Cloudpoint", os.path.basename(cloud))
+        if not os.path.exists(dst):
+            shutil.copy(cloud, dst)
+
+    for mission in thisplot['mission']:
+        print(mission)
+        year = mission.split("_")[2]
+        src = os.path.join(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone", year, mission)
+        dst = os.path.join(r"\\stri-sm01\ForestLandscapes\UAVSHARE", plot, "raw_image", mission)
+        if not os.path.exists(dst + '.zip'):  # Check if the ZIP file already exists
+            shutil.make_archive(dst, 'zip', src)    
+    
     metadata_list = []
 
     # Extract metadata for orthomosaics
@@ -98,6 +154,7 @@ for PLOT in plots:
             meta['translate_y'] = transform.f
             
             # Append the metadata dictionary to the list
+            print("done otho")
             metadata_list.append(meta)
 
     # Extract metadata for DSMs
@@ -122,6 +179,7 @@ for PLOT in plots:
             meta['translate_y'] = transform.f
             
             # Append the metadata dictionary to the list
+            print("done dsm")
             metadata_list.append(meta)
     # Extract meta_clouddata for point clouds
 
@@ -160,6 +218,7 @@ for PLOT in plots:
         for dim in src.point_format.dimensions:
             dimensions.append(dim.name)
         meta_cloud["dimensions"]= ", ".join(dimensions)
+        print("done1")
         meta_cloud2.append(meta_cloud)
 
     # Convert the list of metadata dictionaries to a DataFrame
@@ -190,86 +249,12 @@ for PLOT in plots:
     metadata_all.append(metadata)
 
 met= pd.concat(metadata_all, ignore_index=True)
-met.to_csv(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\metadata_all.csv", index=False)
+met.to_csv(r"\\stri-sm01\ForestLandscapes\UAVSHARE\50ha\metadata_all.csv", index=False)
 
-metadata_all= pd.read_csv(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\metadata_all.csv")
 
-metadata_all= metadata_all[['product','site', 'plot', 'year', 'month', 'day','drone','drone_long', 'sensor','type', 'driver',
-                             'xmin', 'xmax', 'ymin', 'ymax', 'dtype', 'nodata', 'width', 'height', 'count','transform', 
-        'scale_x', 'shear_x', 'translate_x',
-       'shear_y', 'scale_y', 'translate_y', 'point_n', 'zmin', 'zmax',
-       'scale_z', 'offset_x', 'offset_y', 'offset_z', 'las_version',
-       'dimensions','crs']]
-metadata_all.columns
-metadata_all.to_csv(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\metadata_all.csv", index=False)
 
-metadata_all[metadata_all['type']=='orthomosaic']
-metadata_all[metadata_all['type']=='dsm']
-metadata_all[metadata_all['type']=='cloud']
 
-metadata_all.columns
-metadata_all["product"].unique()
-filtered_missions_df = missions_df[missions_df['plot'].isin(plots)]
-filtered_missions_df.to_csv(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\filtered_missions.csv", index=False)
 
-metadata_all["product_temp"]= metadata_all["product"].replace("orthomosaic.tif", "orthomosaic.tif")
-
-import pandas as pd
-
-# Define the descriptions for each variable
-descriptions = {
-    "product": "The name of the data product, typically the filename of the dataset.",
-    "site": "Macro-site long name, for example Parque Natual Metropolitan, or PNNM.",
-    "plot": "A particular section or forest plot within the site where data collection took place.",
-    "year": "The year when the data was collected.",
-    "month": "The month when the data was collected.",
-    "day": "The day of the month when the data was collected.",
-    "drone": "A shorthand identifier for the drone used (e.g., P4P for DJI Phantom 4 Pro).",
-    "drone_long": "The full name or model of the drone used for data collection.",
-    "sensor": "The specific sensor or camera used to capture the data (e.g., FC6310, MAPIR).",
-    "type":"The type of data product (e.g., orthomosaic, dsm,cloud).",
-    "driver": "The software or tool used to manage or process the data files (e.g., GDAL).",
-    "xmin": "The minimum x-coordinate (longitude) in the dataset.",
-    "xmax": "The maximum x-coordinate (longitude) in the dataset.",
-    "ymin": "The minimum y-coordinate (latitude) in the dataset.",
-    "ymax": "The maximum y-coordinate (latitude) in the dataset.",
-    "dtype": "The data type of the values in the dataset (e.g., integer, float).",
-    "nodata": "The value used to represent missing or undefined data within the dataset.",
-    "width": "The width of the dataset, typically referring to the number of columns in the image or grid.",
-    "height": "The height of the dataset, typically referring to the number of rows in the image or grid.",
-    "count": "The number of layers or bands in the dataset (e.g., 4 for RGB).",
-    "transform": "A six-element affine transformation matrix that maps pixel coordinates to geographic coordinates.",
-    "scale_x": "The scaling factor applied to the x-coordinate during data transformation.",
-    "shear_x": "The shear factor applied to the x-coordinate, representing distortion or slant in the data.",
-    "translate_x": "The translation applied to the x-coordinate, shifting the data horizontally.",
-    "shear_y": "The shear factor applied to the y-coordinate, representing distortion or slant in the data.",
-    "scale_y": "The scaling factor applied to the y-coordinate during data transformation.",
-    "translate_y": "The translation applied to the y-coordinate, shifting the data vertically.",
-    "point_n": "The number points in a point cloud",
-    "zmin": "The minimum z-coordinate (elevation or height) in the dataset.",
-    "zmax": "The maximum z-coordinate (elevation or height) in the dataset.",
-    "scale_z": "The scaling factor applied to the z-coordinate during data transformation.",
-    "offset_x": "The offset applied to the x-coordinate, typically used to correct the origin point.",
-    "offset_y": "The offset applied to the y-coordinate, typically used to correct the origin point.",
-    "offset_z": "The offset applied to the z-coordinate, typically used to correct the origin point.",
-    "las_version": "The version of the LAS file format used for point clouds (e.g., 1.2, 1.4).",
-    "dimensions": "The dimensions included in the point cloud, such as X, Y, Z, intensity, etc.",
-    "crs": "The coordinate reference system used to georeference the dataset (e.g., EPSG: 32617 for UTM Zone 17N)."
-}
-
-# Create a DataFrame from the descriptions dictionary
-descriptions_df = pd.DataFrame(list(descriptions.items()), columns=["Variable", "Description"])
-
-# Save the DataFrame to a CSV file
-descriptions_df.to_csv(r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\variable_descriptions.csv", index=False)
-
-print("CSV file with variable descriptions created successfully.")
-
-plots= metadata_all['plot'].unique()
-metadata_all[metadata_all['plot']==plots[0]]["xmin"].min()
-metadata_all[metadata_all['plot']==plots[0]]["xmax"].max()
-metadata_all[metadata_all['plot']==plots[0]]["ymin"].min()
-metadata_all[metadata_all['plot']==plots[0]]["ymax"].max()
 
 
 
