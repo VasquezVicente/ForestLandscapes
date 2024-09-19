@@ -60,6 +60,7 @@ for orthomosaic in global_orthomosaics:
 local_tiles_out= os.path.join(wd_path, "Product_tiles_local")
 os.makedirs(local_tiles_out, exist_ok=True)
 list_folder = [folder for folder in os.listdir(tiles_out) if os.path.isdir(os.path.join(tiles_out, folder))]
+shutil.copytree(os.path.join(tiles_out, list_folder[0]), os.path.join(local_tiles_out, list_folder[0]))
 
 for index in range(0,100):
     print(f"Processing index {index}")
