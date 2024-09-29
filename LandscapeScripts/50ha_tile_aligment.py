@@ -13,6 +13,7 @@ from shapely.ops import transform
 import time
 from rasterio.warp import reproject, Resampling
 from datetime import datetime
+from rasterio.mask import mask
 
 
 def tile_ortho(sub, buffer, output_folder, gridInfo):
@@ -66,7 +67,7 @@ for index in range(0,100):
     print(f"Processing index {index}")
     #loop backwards
     reference= os.path.join(tiles_out, list_folder[0], f"{list_folder[0]}_tile_{index}.tif")
-    for folder in range(1,9):
+    for folder in range(1,17):
         print(f"Processing {list_folder[folder]}")
         target= os.path.join(tiles_out, list_folder[folder], f"{list_folder[folder]}_tile_{index}.tif")
         output_path = os.path.join(local_tiles_out, list_folder[folder])
@@ -96,4 +97,47 @@ for index in range(0,100):
         except Exception as e:
             print(f"Error: {e}")
         
-  
+
+#align the tiles vertically
+#it doesnt matter which medium you choose since it is intrinsic alignment within this timeseries
+#arguably if i choose the april date we would have a lower median since some trees are leafless 
+local_tiles_vertical = os.path.join(wd_path, "Product_tiles_vertical")
+os.makedirs(local_tiles_vertical, exist_ok=True)
+
+list_folder = [folder for folder in os.listdir(local_tiles_out) if os.path.isdir(os.path.join(local_tiles_out, folder))]
+shutil.copytree(os.path.join(local_tiles_out, list_folder[0]), os.path.join(local_tiles_vertical, list_folder[0]))
+
+for index in range(0, 100):
+    print(f"Processing index {index}")
+    reference = os.path.join(tiles_out, list_folder[0], f"{list_folder[0]}_tile_{index}.tif")
+    for folder in range(1, 17):
+        print(f"Processing {list_folder[folder]}")
+        target = os.path.join(local_tiles_out, list_folder[folder], f"{list_folder[folder]}_tile_{index}.tif")
+        output_path = os.path.join(local_tiles_vertical, list_folder[folder])
+        os.makedirs(output_path, exist_ok=True)
+        output_path2 = os.path.join(output_path, f"{list_folder[folder]}_tile_{index}.tif")
+        try:
+            with rasterio.open(reference) as src:
+                dem_data_photo = src.read(4)
+                ref = np.median(dem_data_photo[dem_data_photo != 0])
+                print("The median of the closest date is:", ref)
+            
+            with rasterio.open(target) as src:
+                dem_data_date = src.read()
+                dem_meta_date = src.meta
+                alpha_band = dem_data_date[-1]
+                tgt = np.median(alpha_band[alpha_band != 0])
+                print("The median of the date is:", tgt)
+                if ref> tgt:
+                    dem_data_date[3,:,:]=dem_data_date[3,:,:]+(ref-tgt)
+                elif ref< tgt:
+                    dem_data_date[3,:,:]=dem_data_date[3,:,:]-(tgt-ref)
+                                
+                with rasterio.open(output_path2, 'w', **dem_meta_date) as dst:
+                    dst.write(dem_data_date)
+                
+                reference = output_path2
+                print("Finished backward alignment of date")
+        except Exception as e:
+            print(f"Error: {e}")
+            continue
