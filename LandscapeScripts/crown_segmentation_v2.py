@@ -18,7 +18,6 @@ from segment_anything import SamPredictor
 from segment_anything import sam_model_registry
 import torch
 #rasterio functions
-from
 from rasterio.features import rasterize
 from rasterio.windows import Window
 from rasterio.transform import from_origin
@@ -236,8 +235,6 @@ def crown_avoid(dir):
         elif not isinstance(geom, Polygon):
             crown_avoidance.at[index, "geometry"] = pd.NA
     return crown_avoidance
-
-
 def process_crown_data(wd_path, tile_folder, reference, ortho, out_segmented):
     # Tile the orthophoto
     tile_ortho(ortho, 100, 30, tile_folder)
@@ -262,11 +259,21 @@ def process_crown_data(wd_path, tile_folder, reference, ortho, out_segmented):
     crownmap_filtered.to_file(out_segmented)
 
 MODEL_TYPE = "vit_h"
-checkpoint = r"/home/vasquezv/BCI_50ha/aux_files/sam_vit_h_4b8939.pth"
+checkpoint = r"C:\Users\VasquezV\repo\crown-segment\models\sam_vit_h_4b8939.pth"
 device = 'cuda'
 sam = sam_model_registry[MODEL_TYPE](checkpoint=checkpoint)
 #sam.to(device=device)  #requires cuda cores
 mask_predictor = SamPredictor(sam)
+
+path1= r"\\stri-sm01\ForestLandscapes\UAVSHARE\crownmap_2024"
+tiles_folder= r"\\stri-sm01\ForestLandscapes\UAVSHARE\crownmap_2024\tiles"
+os.makedirs(tiles_folder, exist_ok=True)
+reference1=r"\\stri-sm01\ForestLandscapes\UAVSHARE\crownmap_2024\BCI_50ha_2024_10_01_reference_crownmap.shp"
+ortho1=r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2024\BCI_50ha_2024_10_01_M3E\Orthophoto\BCI_50ha_2024_10_01_orthomosaic.tif"
+crownmap_out1 =r"\\stri-sm01\ForestLandscapes\UAVSHARE\crownmap_2024\BCI_50ha_2024_10_01_crownmap_segmented.shp"
+process_crown_data(path1,tiles_folder,reference1,ortho1,crownmap_out1)
+
+
 
 #Working directory
 wd_path= r"/home/vasquezv/BCI_50ha"

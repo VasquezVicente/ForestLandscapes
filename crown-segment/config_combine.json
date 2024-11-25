@@ -1,0 +1,5 @@
+{
+    "crowns_date1": "D:/data_crown/2024-08-13_orthowholeBCI_res20.tif",
+    "crowns_date2": "D:/data_crown/230103_randresize_full.pth",
+    "output_path": "D:/data_crown/consensus_crowns.shp",
+}
