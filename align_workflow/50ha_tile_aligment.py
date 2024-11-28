@@ -54,7 +54,7 @@ for orthomosaic in global_orthomosaics:
     name= orthomosaic.replace("_global.tif","")
     print(f"Processing {name}")
     os.makedirs(os.path.join(tiles_out,name), exist_ok=True)
-    tile_ortho(os.path.join(wd_path,"Product_global", orthomosaic),
+    tile_ortho(os.path.join(wd_path,"orthomosaics_tile", orthomosaic),
                20,
                os.path.join(tiles_out,name),
                subplots)
