@@ -68,7 +68,7 @@ list_folder = [folder for folder in os.listdir(tiles_out) if os.path.isdir(os.pa
 shutil.copytree(os.path.join(tiles_out, list_folder[0]), os.path.join(local_tiles_out, list_folder[0]))
 
 #align the tiles horizontally
-for index in range(0,100):
+for index in range(0,50):
     print(f"Processing index {index}")
     #loop backwards
     reference= os.path.join(tiles_out, list_folder[0], f"{list_folder[0]}_tile_{index}.tif")
@@ -116,7 +116,7 @@ list_folder = [folder for folder in os.listdir(local_tiles_out) if os.path.isdir
 shutil.copytree(os.path.join(local_tiles_out, list_folder[0]), os.path.join(local_tiles_vertical, list_folder[0]))
 
 
-for index in range(0, 100):
+for index in range(0, 50):
     print(f"Processing index {index}")
     reference = os.path.join(tiles_out, list_folder[0], f"{list_folder[0]}_tile_{index}.tif")
     for folder in range(1, 32):
