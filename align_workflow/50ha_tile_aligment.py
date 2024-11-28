@@ -73,7 +73,7 @@ for index in range(0,50):
     print(f"Processing index {index}")
     #loop backwards
     reference= os.path.join(tiles_out, list_folder[0], f"{list_folder[0]}_tile_{index}.tif")
-    for folder in range(1,4):
+    for folder in range(1,3):
         print(f"Processing {list_folder[folder]}")
         target= os.path.join(tiles_out, list_folder[folder], f"{list_folder[folder]}_tile_{index}.tif")
         output_path = os.path.join(local_tiles_out, list_folder[folder])
@@ -120,7 +120,7 @@ shutil.copytree(os.path.join(local_tiles_out, list_folder[0]), os.path.join(loca
 for index in range(0, 50):
     print(f"Processing index {index}")
     reference = os.path.join(tiles_out, list_folder[0], f"{list_folder[0]}_tile_{index}.tif")
-    for folder in range(1, 4):
+    for folder in range(1, 3):
         print(f"Processing {list_folder[folder]}")
         target = os.path.join(local_tiles_out, list_folder[folder], f"{list_folder[folder]}_tile_{index}.tif")
 
