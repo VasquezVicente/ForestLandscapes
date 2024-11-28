@@ -44,7 +44,6 @@ subplots= gpd.read_file(os.path.join(wd_path,"aux_files","subplots.shp"))
 # Create a buffer around the plot
 #lets use the global alignment products publish in vasquez et al 2024
 global_orthomosaics= [file for file in os.listdir(os.path.join(wd_path, "orthomosaics_tile")) if file.endswith(".tif")]
-global_orthomosaics= global_orthomosaics[0:3]
 print(f"Global orthomosaics: {global_orthomosaics}")
 
 #Local alignemnt of the tiles
@@ -73,7 +72,7 @@ for index in range(0,50):
     print(f"Processing index {index}")
     #loop backwards
     reference= os.path.join(tiles_out, list_folder[0], f"{list_folder[0]}_tile_{index}.tif")
-    for folder in range(1,3):
+    for folder in range(1,32):
         print(f"Processing {list_folder[folder]}")
         target= os.path.join(tiles_out, list_folder[folder], f"{list_folder[folder]}_tile_{index}.tif")
         output_path = os.path.join(local_tiles_out, list_folder[folder])
@@ -120,7 +119,7 @@ shutil.copytree(os.path.join(local_tiles_out, list_folder[0]), os.path.join(loca
 for index in range(0, 50):
     print(f"Processing index {index}")
     reference = os.path.join(tiles_out, list_folder[0], f"{list_folder[0]}_tile_{index}.tif")
-    for folder in range(1, 3):
+    for folder in range(1, 32):
         print(f"Processing {list_folder[folder]}")
         target = os.path.join(local_tiles_out, list_folder[folder], f"{list_folder[folder]}_tile_{index}.tif")
 
