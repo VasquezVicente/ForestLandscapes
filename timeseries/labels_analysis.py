@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 
-labels_path= r"C:\Users\Vicente\Downloads\labels"
+labels_path= r"timeseries\labels"
 list_files = os.listdir(labels_path)
 
 all_csv=[]
@@ -24,13 +24,13 @@ def determine_final_label(labels_list):
     return labels_list[0]
 
 # Apply the function to the grouped labels
-labels_grouped['final_leafing'] = labels_grouped['leafing'].apply(determine_final_label)
+labels_grouped['leafing_label'] = labels_grouped['leafing'].apply(determine_final_label)
 
 # Optionally, drop the 'leafing' column if you only want the final label
 labels_grouped = labels_grouped.drop(columns=['leafing'])
 
 #export
-labels_grouped.to_csv(r"C:\Users\Vicente\Downloads\Labels_Log2_grouped.csv")
+labels_grouped.to_csv(r"timeseries/Labels_Log2_grouped.csv")
 
 
 ## open predicted df
