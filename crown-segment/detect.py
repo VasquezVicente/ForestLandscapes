@@ -31,6 +31,7 @@ def detect_crowns(config_path):
     clean.to_file(os.path.join(config["site_path"], config["image_path"]+"predicted.shp"))
     print("Crown detection complete")
 
+detect_crowns(config_path)
 
 
 

@@ -1,11 +1,11 @@
 {
-    "image_path": "D:/data_crown/2024-09-18_orthoWholeBCI_res20.tif",
+    "image_path": "D:/data_crown/sherman2025_2.tif",
     "model_path": "D:/data_crown/230103_randresize_full.pth",
     "site_path":"D:/data_crown",
     "buffer": 30, 
     "tile_width":40,
     "tile_height":40,
-    "img": "image_name",
+    "img": "sherman2025_2.tif",
     "iou_th":0.6,
     "stitch_threshold": 1,
     "clean_threshold": 0.6,
