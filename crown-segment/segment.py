@@ -258,13 +258,13 @@ def process_crown_data(wd_path, tile_folder, reference, ortho, out_segmented):
     crownmap_filtered.to_file(out_segmented)
 
 MODEL_TYPE = "vit_h"
-checkpoint = r"D:\BCI_50ha\aux_files\sam_vit_h_4b8939.pth"
+checkpoint = r"/home/vasquezv/BCI_50ha/aux_files/sam_vit_h_4b8939.pth"
 device = 'cuda'
 sam = sam_model_registry[MODEL_TYPE](checkpoint=checkpoint)
 #sam.to(device=device)  #requires cuda cores
 mask_predictor = SamPredictor(sam)
 
-crownmap=gpd.read_file(r"D:\data_crown\sherman2025_2.tifpredicted.shp")
+crownmap=gpd.read_file(r"/home/vasquezv/sherman/sherman2025_2.tifpredicted.shp")
 crownmap['GlobalID'] = crownmap.apply(lambda x: uuid.uuid4(), axis=1)
-tile_ortho(r"D:\data_crown\sherman2025_2.tif", 50, 20, r"D:\data_crown\tiles")
-crown_segment(r"D:\data_crown\tiles",crownmap,r"D:\data_crown\sherman_segmented.shp")
+tile_ortho(r"/home/vasquezv/sherman/sherman2025_2.tif", 100, 30, r"/home/vasquezv/sherman/tiles")   
+crown_segment(r"/home/vasquezv/sherman/tiles",crownmap,r"/home/vasquezv/sherman/sherman_segmented.shp")
