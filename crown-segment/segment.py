@@ -266,5 +266,6 @@ mask_predictor = SamPredictor(sam)
 
 crownmap=gpd.read_file(r"/home/vasquezv/sherman/sherman2025_2.tifpredicted.shp")
 crownmap['GlobalID'] = crownmap.apply(lambda x: uuid.uuid4(), axis=1)
+crownmap['GlobalID'] = crownmap['GlobalID'].astype(str)
 tile_ortho(r"/home/vasquezv/sherman/sherman2025_2.tif", 100, 30, r"/home/vasquezv/sherman/tiles")   
 crown_segment(r"/home/vasquezv/sherman/tiles",crownmap,r"/home/vasquezv/sherman/sherman_segmented.shp")
