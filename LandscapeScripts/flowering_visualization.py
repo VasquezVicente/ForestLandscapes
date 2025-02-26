@@ -13,27 +13,139 @@ import pandas as pd
 import numpy as np
 
 
-#list all the segmented shps
-path_shps=r"D:\BCI_50ha\crown_segmentation"
-reference_raw=r"D:\BCI_50ha\crown_segmentation\BCI_50ha_2020_08_01_crownmap_raw\Crowns_2020_08_01_MergedWithPlotData.shp"
-shps=[os.path.join(path_shps,shp) for shp in os.listdir(path_shps) if shp.endswith("_improved.shp")]
-#list all the locally aligned orthomosaics
-paths_ortho=r"D:\BCI_50ha\timeseries_local_alignment"
-orthos=[os.path.join(paths_ortho,ortho) for ortho in os.listdir(paths_ortho) if ortho.endswith(".tif")]
+#PATHS
+data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
+path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
+labels_path=r"timeseries/50ha_timeseries_labels.csv"
+orthomosaic_path=os.path.join(data_path,"orthomosaic_aligned_local")
 
-#we need to know the level of noise of the segmentation
+#list of orthomosaics
+orthomosaic_list=os.listdir(orthomosaic_path)
 
-#we can combine all the shapefiles into one
-all_shapefiles=gpd.GeoDataFrame()
-for shapefile in shps:
-    shapefile_subset=gpd.read_file(shapefile)
-    shapefile_subset=shapefile_subset[["tag","area","score","geometry","Mnemonic","Latin"]]
-    #add the date as a column
-    shapefile_subset["date"]="_".join(shapefile.split("\\")[-1].split("_")[0:3])
-    all_shapefiles=all_shapefiles.append(shapefile_subset)
-    print("finished",shapefile)
+#open gdf containing polygons
+crowns=gpd.read_file(path_crowns)
+crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
+#open df containing labels
+labels=pd.read_csv(labels_path)
+#merge labels and crowns, keeping only labeled ones
+crowns_labeled= labels.merge(crowns[['area', 'score', 'tag', 'iou', 'geometry','polygon_id']],
+                              left_on="polygon_id",
+                                right_on="polygon_id",
+                                  how="left")
 
-all_shapefiles["Latin"].unique()   
+
+#flowering individuals
+crowns_flowering_yes= crowns_labeled[crowns_labeled["isFlowering"]=="yes"]
+crowns_flowering_maybe= crowns_labeled[crowns_labeled['isFlowering']=='maybe']
+
+crowns_per_page = 12
+crowns_plotted = 0
+
+with PdfPages("plots/flowering_labeled_yes2.pdf") as pdf_pages:
+    fig, axes = plt.subplots(4, 3, figsize=(15, 20))
+    axes = axes.flatten()
+
+    for i, (_, row) in enumerate(crowns_flowering_yes.iterrows()):
+        path_orthomosaic = os.path.join(orthomosaic_path, f"BCI_50ha_{row['date']}_local.tif")
+
+        with rasterio.open(path_orthomosaic) as src:
+            bounds = row.geometry.bounds
+            box_crown_5 = box(bounds[0]-5, bounds[1]-5, bounds[2]+5, bounds[3]+5)
+
+            out_image, out_transform = mask(src, [box_crown_5], crop=True)
+            x_min, y_min = out_transform * (0, 0)
+            xres, yres = out_transform[0], out_transform[4]
+
+            # Transform geometry
+            transformed_geom = shapely.ops.transform(
+                lambda x, y: ((x - x_min) / xres, (y - y_min) / yres),
+                row.geometry
+            )
+
+            # Plot on current axis
+            ax = axes[crowns_plotted % crowns_per_page]
+            ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
+            ax.plot(*transformed_geom.boundary.xy, color='red', linewidth=2)
+            ax.axis('off')
+            # Add text label
+            latin_name = row['latin']
+            flowering_intensity = row['floweringIntensity']
+            ax.text(5, 5, f"{latin_name}\nFI: {flowering_intensity}",
+                    fontsize=12, color='white', backgroundcolor='black', verticalalignment='top')
+
+            crowns_plotted += 1
+
+        # Save PDF and start a new page every 12 crowns
+        if crowns_plotted % crowns_per_page == 0 or i == len(crowns_flowering_yes) - 1:
+            plt.tight_layout()
+            pdf_pages.savefig(fig)
+            plt.close(fig)
+
+            # Create new figure for the next batch
+            if i != len(crowns_flowering_yes) - 1:  # Prevent unnecessary re-creation at end
+                fig, axes = plt.subplots(4, 3, figsize=(15, 20))
+                axes = axes.flatten()
+
+
+
+
+
+    while crowns_plotted < len(orthos):
+        fig, axes = plt.subplots(4, 3, figsize=(15, 20))
+        axes = axes.flatten()
+
+        for i, (ortho_path, shp_path) in enumerate(zip(orthos[crowns_plotted:crowns_plotted + crowns_per_page], 
+                                                       shps[crowns_plotted:crowns_plotted + crowns_per_page])):
+            with rasterio.open(ortho_path) as src:
+                shapefile = gpd.read_file(shp_path)
+                crown = shapefile[shapefile["tag"]==tags_400[k]]
+                bounds = crown.geometry.total_bounds
+                box_crown_5 = box(bounds[0]-5, bounds[1]-5, bounds[2]+5, bounds[3]+5)
+                out_image, out_transform = mask(src, [box_crown_5], crop=True)
+                x_min, y_min = out_transform * (0, 0)
+                xres, yres = out_transform[0], out_transform[4]
+                transformed_geom = crown.geometry.apply(lambda geom: shapely.ops.transform(lambda x, y: ((x-x_min)/xres, (y-y_min)/yres), geom))
+                axes[i].imshow(out_image.transpose((1, 2, 0))[:,:,0:3])
+                transformed_geom.boundary.plot(ax=axes[i], edgecolor='red', linewidth=2)
+                crowns_plotted += 1
+                axes[i].axis('off')
+            if crowns_plotted >= len(orthos):
+                break
+
+        plt.tight_layout()
+        pdf_pages.savefig()
+        plt.close(fig)
+
+
+
+species1=crowns_labeled[crowns_labeled['latin']=="Tachigali panamensis"]
+len(species1['globalId'].unique())
+species1[species1['isFlowering']=='yes']['date']
+species1[species1['isFlowering']=='maybe']['date']
+
+species1_all=crowns[crowns['latin']=='Tachigali panamensis']
+len(species1_all['GlobalID'].unique())
+
+
+statistics.mean(species1_all['area'])
+min(species1_all['area'])
+max(species1_all['area'])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 tag_k=106463
@@ -247,35 +359,6 @@ if not os.path.exists(f"tree_{thetag}/"):
     os.makedirs(f"tree_{thetag}/")
 plt.savefig(f"tree_{thetag}/crown_area_timeseries.png")
 
-
-crowns_per_page = 12
-crowns_plotted = 0
-with PdfPages(f"tree_{thetag}/all_crowns_{thetag}.pdf") as pdf_pages:
-    while crowns_plotted < len(orthos):
-        fig, axes = plt.subplots(4, 3, figsize=(15, 20))
-        axes = axes.flatten()
-
-        for i, (ortho_path, shp_path) in enumerate(zip(orthos[crowns_plotted:crowns_plotted + crowns_per_page], 
-                                                       shps[crowns_plotted:crowns_plotted + crowns_per_page])):
-            with rasterio.open(ortho_path) as src:
-                shapefile = gpd.read_file(shp_path)
-                crown = shapefile[shapefile["tag"]==tags_400[k]]
-                bounds = crown.geometry.total_bounds
-                box_crown_5 = box(bounds[0]-5, bounds[1]-5, bounds[2]+5, bounds[3]+5)
-                out_image, out_transform = mask(src, [box_crown_5], crop=True)
-                x_min, y_min = out_transform * (0, 0)
-                xres, yres = out_transform[0], out_transform[4]
-                transformed_geom = crown.geometry.apply(lambda geom: shapely.ops.transform(lambda x, y: ((x-x_min)/xres, (y-y_min)/yres), geom))
-                axes[i].imshow(out_image.transpose((1, 2, 0))[:,:,0:3])
-                transformed_geom.boundary.plot(ax=axes[i], edgecolor='red', linewidth=2)
-                crowns_plotted += 1
-                axes[i].axis('off')
-            if crowns_plotted >= len(orthos):
-                break
-
-        plt.tight_layout()
-        pdf_pages.savefig()
-        plt.close(fig)
 
 
 

@@ -20,6 +20,7 @@ LandscapeScripts/metadata.py
 *.shx
 *.dbf
 *.prj
+*.pdf
 *.xml
 *.shp.xml
 .Rproj.user
