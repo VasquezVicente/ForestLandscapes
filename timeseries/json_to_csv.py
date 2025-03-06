@@ -2,7 +2,9 @@ import os
 import pandas as pd
 import json
 
-location=r"timeseries/export_2025_02_25"
+folder_name = input("Input folder name:")
+
+location=os.path.join(r'timeseries', folder_name)
 files= os.listdir(location)
 
 with open(os.path.join(location,files[0]), "r") as f:
@@ -42,4 +44,4 @@ df_plants= pd.DataFrame(data_plants)
 df_merged= df.merge(df_plants, left_on='polygon_id', right_on='polygon_id', how='left')
 
 #export as csv
-df_merged.to_csv("timeseries/50ha_timeseries_labels.csv")
+df_merged.to_csv(f"timeseries/{folder_name}.csv")

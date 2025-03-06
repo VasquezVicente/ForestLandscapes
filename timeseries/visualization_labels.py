@@ -1,9 +1,38 @@
-import matplotlib.pyplot as plt
+import rasterio
+from rasterio.mask import mask
 import os
+import shapely
+import geopandas as gpd
+import numpy as np
+import matplotlib.pyplot as plt
+from shapely.geometry import box
+import matplotlib.patches as patches
+from shapely.affinity import affine_transform
+from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
+import numpy as np
 
-labels=r'timeseries/50ha_timeseries_labels.csv'
-labels= pd.read_csv(labels)
+#PATHS
+data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
+#data_path=r"C:\Users\Vicente\Documents\Data"
+path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
+labels_path=r"timeseries/export_2025_03_05.csv"
+orthomosaic_path=os.path.join(data_path,"orthomosaic_aligned_local")
+
+#list of orthomosaics
+orthomosaic_list=os.listdir(orthomosaic_path)
+
+#open gdf containing polygons
+crowns=gpd.read_file(path_crowns)
+crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
+#open df containing labels
+labels=pd.read_csv(labels_path)
+#merge labels and crowns, keeping only labeled ones
+crowns_labeled= labels.merge(crowns[['area', 'score', 'tag', 'iou', 'geometry','polygon_id']],
+                              left_on="polygon_id",
+                                right_on="polygon_id",
+                                  how="left")
+
 
 
 #plot of most labeled species
@@ -29,3 +58,60 @@ plt.show()
 
 #flowering maybe 
 labels_flowering_maybe= labels[labels['isFlowering']=="maybe"]
+
+
+
+#flowering individuals
+crowns_flowering_yes= crowns_labeled[crowns_labeled["isFlowering"]=="yes"]
+crowns_flowering_maybe= crowns_labeled[crowns_labeled['isFlowering']=='maybe']
+
+crowns_per_page = 12
+crowns_plotted = 0
+
+with PdfPages("plots/flowering_labeled_yes2.pdf") as pdf_pages:
+    fig, axes = plt.subplots(4, 3, figsize=(15, 20))
+    axes = axes.flatten()
+
+    for i, (_, row) in enumerate(crowns_flowering_yes.iterrows()):
+        path_orthomosaic = os.path.join(orthomosaic_path, f"BCI_50ha_{row['date']}_local.tif")
+
+        with rasterio.open(path_orthomosaic) as src:
+            bounds = row.geometry.bounds
+            box_crown_5 = box(bounds[0]-5, bounds[1]-5, bounds[2]+5, bounds[3]+5)
+
+            out_image, out_transform = mask(src, [box_crown_5], crop=True)
+            x_min, y_min = out_transform * (0, 0)
+            xres, yres = out_transform[0], out_transform[4]
+
+            # Transform geometry
+            transformed_geom = shapely.ops.transform(
+                lambda x, y: ((x - x_min) / xres, (y - y_min) / yres),
+                row.geometry
+            )
+
+            # Plot on current axis
+            ax = axes[crowns_plotted % crowns_per_page]
+            ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
+            ax.plot(*transformed_geom.boundary.xy, color='red', linewidth=2)
+            ax.axis('off')
+            # Add text label
+            latin_name = row['latin']
+            flowering_intensity = row['floweringIntensity']
+            ax.text(5, 5, f"{latin_name}\nFI: {flowering_intensity}",
+                    fontsize=12, color='white', backgroundcolor='black', verticalalignment='top')
+
+            crowns_plotted += 1
+
+        # Save PDF and start a new page every 12 crowns
+        if crowns_plotted % crowns_per_page == 0 or i == len(crowns_flowering_yes) - 1:
+            plt.tight_layout()
+            pdf_pages.savefig(fig)
+            plt.close(fig)
+
+            # Create new figure for the next batch
+            if i != len(crowns_flowering_yes) - 1:  # Prevent unnecessary re-creation at end
+                fig, axes = plt.subplots(4, 3, figsize=(15, 20))
+                axes = axes.flatten()
+
+
+
