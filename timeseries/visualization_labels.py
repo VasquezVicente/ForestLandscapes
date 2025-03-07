@@ -56,23 +56,21 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.show()
 
 
-#flowering maybe 
-labels_flowering_maybe= labels[labels['isFlowering']=="maybe"]
+#QAQC
+crowns_labeled.columns
+crowns_labeled= crowns_labeled[crowns_labeled["segmentation"]=="good"]
+crowns_labeled= crowns_labeled[crowns_labeled['isFlowering']=="no"]
+unique_leafing_rows = crowns_labeled.drop_duplicates(subset=['leafing']).sort_values(by='leafing')
 
-
-
-#flowering individuals
-crowns_flowering_yes= crowns_labeled[crowns_labeled["isFlowering"]=="yes"]
-crowns_flowering_maybe= crowns_labeled[crowns_labeled['isFlowering']=='maybe']
 
 crowns_per_page = 12
 crowns_plotted = 0
 
-with PdfPages("plots/flowering_labeled_yes2.pdf") as pdf_pages:
+with PdfPages("plots/decidouss_example.pdf") as pdf_pages:
     fig, axes = plt.subplots(4, 3, figsize=(15, 20))
     axes = axes.flatten()
 
-    for i, (_, row) in enumerate(crowns_flowering_yes.iterrows()):
+    for i, (_, row) in enumerate(unique_leafing_rows.iterrows()):
         path_orthomosaic = os.path.join(orthomosaic_path, f"BCI_50ha_{row['date']}_local.tif")
 
         with rasterio.open(path_orthomosaic) as src:
@@ -88,30 +86,33 @@ with PdfPages("plots/flowering_labeled_yes2.pdf") as pdf_pages:
                 lambda x, y: ((x - x_min) / xres, (y - y_min) / yres),
                 row.geometry
             )
-
-            # Plot on current axis
+ 
             ax = axes[crowns_plotted % crowns_per_page]
             ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
-            ax.plot(*transformed_geom.boundary.xy, color='red', linewidth=2)
+            ax.plot(*transformed_geom.exterior.xy, color='red', linewidth=2)
             ax.axis('off')
+
             # Add text label
             latin_name = row['latin']
-            flowering_intensity = row['floweringIntensity']
-            ax.text(5, 5, f"{latin_name}\nFI: {flowering_intensity}",
+            numeric_feature_1 = row['leafing']
+            ax.text(5, 5, f"{latin_name}\nLeafing: {numeric_feature_1}",
                     fontsize=12, color='white', backgroundcolor='black', verticalalignment='top')
 
             crowns_plotted += 1
 
         # Save PDF and start a new page every 12 crowns
-        if crowns_plotted % crowns_per_page == 0 or i == len(crowns_flowering_yes) - 1:
+        if crowns_plotted % crowns_per_page == 0 or i == len(unique_leafing_rows) - 1:
             plt.tight_layout()
             pdf_pages.savefig(fig)
             plt.close(fig)
 
             # Create new figure for the next batch
-            if i != len(crowns_flowering_yes) - 1:  # Prevent unnecessary re-creation at end
+            if i != len(unique_leafing_rows) - 1:  # Prevent unnecessary re-creation at end
                 fig, axes = plt.subplots(4, 3, figsize=(15, 20))
                 axes = axes.flatten()
 
+
+            elif transformed_geom.geom_type == "MultiPolygon":
+                continue
 
 
