@@ -18,6 +18,7 @@ import numpy as np
 from skimage.feature import graycomatrix
 from skimage.feature import graycoprops
 from skimage import img_as_ubyte
+from timeseries.timeseries_tools import generate_leafing_pdf
 
 #PATHS
 data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
@@ -56,17 +57,41 @@ crowns_labeled_avg = crowns_labeled.groupby("polygon_id").agg({
     "score":"first"
 }).reset_index()
 
+
 crowns_labeled_avg = gpd.GeoDataFrame(crowns_labeled_avg, geometry='geometry')
 crowns_labeled_avg.set_crs("EPSG:32617", allow_override=True, inplace=True)  
 
-crowns_labeled_avg.to_file(r"timeseries/training_dataset.shp")
+
+crowns_labeled_0 = crowns_labeled_avg[crowns_labeled_avg['leafing'] == 0]
+generate_leafing_pdf(r"plots/leafing0.pdf",crowns_labeled_0,orthomosaic_path,crowns_per_page=12)
+crowns_labeled_0_csv= crowns_labeled_0.drop(columns='geometry')
+crowns_labeled_0_csv.to_csv(r"timeseries/check_0.csv")
 
 
-crowns_labeled_avg=crowns_labeled_avg.sort_values("leafing")
+crowns_labeled_01 = crowns_labeled_avg[(crowns_labeled_avg['leafing'] > 0) & (crowns_labeled_avg['leafing'] < 100)]
+generate_leafing_pdf(r"plots/leafing01.pdf",crowns_labeled_01,orthomosaic_path,crowns_per_page=12)
+crowns_labeled_01_csv= crowns_labeled_01.drop(columns='geometry')
+crowns_labeled_01_csv.to_csv(r"timeseries/check_01.csv")
 
-# i need the edmemebers
-crowns_labeled_0= crowns_labeled_avg[crowns_labeled_avg['leafing']==0]
-crowns_labeled_1=crowns_labeled_avg[crowns_labeled_avg['leafing']==100]
+
+crowns_labeled_1= crowns_labeled_avg[crowns_labeled_avg['leafing'] == 100]
+
+crowns_labeled_0_csv= pd.read_csv(r"timeseries/check_0.csv")
+crowns_labeled_0_updated= crowns_labeled_0.merge(crowns_labeled_0_csv[["polygon_id","leafing"]], left_on="polygon_id", right_on="polygon_id")
+crowns_labeled_0_updated['leafing']= crowns_labeled_0_updated['leafing_y']
+
+crowns_labeled_0_csv= pd.read_csv(r"timeseries/check_01.csv")
+crowns_labeled_01_updated= crowns_labeled_01.merge(crowns_labeled_01_csv[["polygon_id","leafing"]], left_on="polygon_id", right_on="polygon_id")
+crowns_labeled_01_updated['leafing']= crowns_labeled_01_updated['leafing_y']
+
+
+crowns_labeled_all = pd.concat([crowns_labeled_01_updated, crowns_labeled_0_updated, crowns_labeled_1])
+crowns_labeled_all = gpd.GeoDataFrame(crowns_labeled_all, geometry='geometry')
+crowns_labeled_all.set_crs("EPSG:32617", allow_override=True, inplace=True)  
+
+crowns_labeled_all=crowns_labeled_all[['polygon_id','latin', 'geometry', 'date', 'area', 'tag',
+       'iou', 'score', 'leafing']]
+
 
 gv_pixels = []  # For GV (Green Vegetation)
 npv_pixels = []  # For NPV (Non-photosynthetic Vegetation)
@@ -77,6 +102,8 @@ for i, (_, row) in enumerate(crowns_labeled_1.iterrows()):
     path_orthomosaic = os.path.join(orthomosaic_path, f"BCI_50ha_{row['date']}_local.tif")
     with rasterio.open(path_orthomosaic) as src:
         out_image, out_transform = mask(src, [row.geometry], crop=True)
+        plt.imshow(out_image.transpose(1,2,0))
+        plt.show()
         red = out_image[0]  # Band 1 (Red)
         green = out_image[1]  # Band 2 (Green)
         blue = out_image[2]  # Band 3 (Blue)
@@ -85,7 +112,12 @@ for i, (_, row) in enumerate(crowns_labeled_1.iterrows()):
         blue=np.where(blue==0,np.nan,blue)
         gv_pixels.append(np.stack([red.flatten(), green.flatten(), blue.flatten()], axis=1))
 
+import seaborn as sns
 gv_pixels = np.vstack(gv_pixels)
+gv_pixels_clean = gv_pixels[~np.isnan(gv_pixels)]
+plt.figure(figsize=(10, 6))
+sns.histplot(gv_pixels_clean, label="GV Pixels", color="green", kde=True, alpha=0.5)
+plt.show()
 gv_endmember = np.nanmean(gv_pixels, axis=0)
 
 for i, (_, row) in enumerate(crowns_labeled_0.iterrows()):
@@ -93,14 +125,20 @@ for i, (_, row) in enumerate(crowns_labeled_0.iterrows()):
         break
     path_orthomosaic = os.path.join(orthomosaic_path, f"BCI_50ha_{row['date']}_local.tif")
     with rasterio.open(path_orthomosaic) as src:
-        out_image, out_transform = mask(src, [row.geometry], crop=True)
+        out_image, out_transform = mask(src, [row.geometry], crop=True) 
         red = out_image[0]  
         green = out_image[1] 
-        blue = out_image[2]  
+        blue = out_image[2]
+        red= np.where(red>230,red,0)
+        green= np.where(green>230,green,0)
+        blue=np.where(blue>230,blue,0)  
+        plt.imshow(np.dstack((red,green,blue)))
+        plt.show()
         red= np.where(red==0, np.nan, red)
         green= np.where(green==0,np.nan, green)
         blue=np.where(blue==0,np.nan,blue)
         npv_pixels.append(np.stack([red.flatten(), green.flatten(), blue.flatten()], axis=1))
+
 
 npv_pixels = np.vstack(npv_pixels)
 npv_endmember = np.nanmean(npv_pixels, axis=0)
@@ -139,8 +177,8 @@ def calculate_glcm_features(image, window_size=5, angles=[0, 45, 90, 135]):
 
 
 #extract the features, crown based 
-for i, (_, row) in enumerate(crowns_labeled_avg.iterrows()):
-    print(f"Processing iteration {i + 1} of {len(crowns_labeled_avg)}")
+for i, (_, row) in enumerate(crowns_labeled_all.iterrows()):
+    print(f"Processing iteration {i + 1} of {len(crowns_labeled_all)}")
     path_orthomosaic = os.path.join(orthomosaic_path, f"BCI_50ha_{row['date']}_local.tif")
     with rasterio.open(path_orthomosaic) as src:
         out_image, out_transform = mask(src, [row.geometry], crop=True)

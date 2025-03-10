@@ -6,24 +6,22 @@ from xgboost import XGBRegressor
 import geopandas as gpd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
-
-
 import rasterio
 from rasterio.mask import mask
 import os
 import shapely
 import geopandas as gpd
-import numpy as np
 import matplotlib.pyplot as plt
 from shapely.geometry import box
 import matplotlib.patches as patches
 from shapely.affinity import affine_transform
 from matplotlib.backends.backend_pdf import PdfPages
-import pandas as pd
-import numpy as np
+
 
 training_dataset=gpd.read_file(r"timeseries/training_dataset.shp")
 print(training_dataset.columns)
+
+
 
 #split the features and output
 X=training_dataset[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'rSD', 'gSD', 'bSD',
@@ -35,10 +33,9 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_
 
 
 model = XGBRegressor(
-    objective="reg:squarederror", 
     n_estimators=4000,
     max_depth=20, 
-    learning_rate=0.005, 
+    learning_rate=0.001, 
     subsample=0.8,  
     colsample_bytree=0.8, 
     random_state=42,
