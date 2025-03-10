@@ -1,149 +1,104 @@
-#train neural network
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
-
 import os
-import pandas as pd
-import geopandas as gpd
-import numpy as np
-from PIL import Image
-import shapely
-import rasterio
-from rasterio.mask import mask
-
-from sklearn.datasets import make_classification
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
-
-
-
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from shapely.affinity import affine_transform
-from matplotlib.backends.backend_pdf import PdfPages
-
-
-
-
-
-#PATHS
-data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
-path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
-orthomosaic_path=os.path.join(data_path,"orthomosaic_aligned_local")
-orthomosaic_list=os.listdir(orthomosaic_path)
-
-#training dataset
-training_dataset=gpd.read_file(r"timeseries/training_dataset.shp")
-print(training_dataset.columns)
-
-class LeafCoverageDataset(Dataset):
-    def __init__(self, dataframe, orthomosaic_path, transform=None):
-        """
-        Args:
-            dataframe (pd.DataFrame): DataFrame containing your training data.
-            orthomosaic_path (str): Base path where orthomosaic files are stored.
-            transform (callable, optional): Optional transform to be applied on a sample.
-        """
-        self.dataframe = dataframe
-        self.orthomosaic_path = orthomosaic_path
-        self.transform = transform
-        
-    def __len__(self):
-        return len(self.dataframe)
-    
-    def __getitem__(self, idx):
-        # Get the row corresponding to this index
-        row = self.dataframe.iloc[idx]
-        
-        # Build the file path (assumes file naming as in your example)
-        path_orthomosaic = os.path.join(self.orthomosaic_path, f"BCI_50ha_{row['date']}_local.tif")
-        
-        # Load and mask the image
-        with rasterio.open(path_orthomosaic) as src:
-            out_image, _ = mask(src, [row.geometry], crop=True)
-        out_image = np.transpose(out_image, (1, 2, 0))
-        
-        pil_image = Image.fromarray(out_image.astype('uint8'))
-        
-        if self.transform:
-            pil_image = self.transform(pil_image)
-        else:
-            # Default transform: convert to tensor
-            pil_image = transforms.ToTensor()(pil_image)
-        
-        leafing_score = torch.tensor(row['leafing'], dtype=torch.float32)
-        return pil_image, leafing_score
-
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-])
-
-dataset = LeafCoverageDataset(training_dataset, orthomosaic_path, transform=transform)
-
-# Create a DataLoader to iterate over your dataset in batches
-dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
-
-for images, targets in dataloader:
-    print(images.shape, targets.shape)
-
-
+import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
+import torchvision
+import torchvision.transforms as transforms
 
+#select device type
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+#Parameters
+num_epochs=4
+batch_size=4 
+learning_rate= 0.001
 
+#define transform
+transform= transforms.Compose(
+    [transforms.ToTensor(),
+     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+)
 
-# Define the CNN architecture for regression
-class CNNRegressor(nn.Module):
+train_dataset= torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform= transform)
+test_dataset= torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform= transform)
+
+train_loader= torch.utils.data.DataLoader(train_dataset, batch_size= batch_size, shuffle=True)
+test_loader= torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, shuffle=False)
+
+classes= ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+# this is the convolutional neural network architecture
+class ConvNet(nn.Module):
     def __init__(self):
-        super(CNNRegressor, self).__init__()
-        # Assuming input images are RGB with dimensions (3, 224, 224)
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        
-        # Calculate the size after three rounds of pooling:
-        # 224 -> 112 -> 56 -> 28 (each pooling halves the dimensions)
-        self.fc1 = nn.Linear(128 * 28 * 28, 128)
-        self.dropout = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(128, 1)
-        
+        super(ConvNet, self).__init__()
+        self.conv1= nn.Conv2d(3, 6, 5)
+        self.pool= nn.MaxPool2d(2,2)
+        self.conv2= nn.Conv2d(6, 16, 5)
+        self.fc1= nn.Linear(16*5*5, 120)
+        self.fc2 = nn.Linear(120,84)
+        self.fc3 = nn.Linear(84,10)
+
     def forward(self, x):
-        # Convolution + ReLU + Pooling
-        x = F.relu(self.conv1(x))
-        x = self.pool(x)  # Output: (32, 112, 112)
-        
-        x = F.relu(self.conv2(x))
-        x = self.pool(x)  # Output: (64, 56, 56)
-        
-        x = F.relu(self.conv3(x))
-        x = self.pool(x)  # Output: (128, 28, 28)
-        
-        # Flatten the feature maps into a vector
-        x = x.view(x.size(0), -1)
-        
-        x = F.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)
-        
-        # Use sigmoid to output a value between 0 and 1.
-        return torch.sigmoid(x)
+        x= self.pool(F.relu(self.conv1(x)))
+        x= self.pool(F.relu(self.conv2(x)))
+        x= x.view(-1,16*5*5)
+        x= F.relu(self.fc1(x))
+        x= F.relu(self.fc2(x))
+        x= self.fc3(x)
+        return x
+    
+model= ConvNet().to(device)
 
-# Instantiate the model
-model = CNNRegressor()
+criterion = nn.CrossEntropyLoss() # change this to continuos labels
+optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
-# Define the loss function and optimizer
-criterion = nn.MSELoss()  # Using mean squared error for regression
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+n_total_steps = len(train_loader)
 
-# Display the model architecture
-print(model)
+for epoch in range(num_epochs):
+    for i, (images, labels) in enumerate(train_loader):
+        images.to(device)
+        labels.to(device)
+
+        outputs= model(images)
+        loss= criterion(outputs, labels)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        #track progress
+        if (i+1)% 2000 == 0:
+            print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{n_total_steps}], Loss: {loss.item():.4f}')
+
+print('Finish Training')
+
+with torch.no_grad():
+    n_correct=0
+    n_samples=0
+    n_class_correct=[0 for i in range(10)]
+    n_class_samples=[0 for i in range(10)]
+    for images, labels in test_loader:
+        images= images.to(device)
+        labels= labels.to(device)
+        outputs= model(images)
+        _, predicted= torch.max(outputs, 1)
+        n_samples += labels.size(0)
+        n_correct += (predicted== labels).sum().item()
+
+        for i in range(batch_size):
+            label= labels[i]
+            pred= predicted[i]
+            if (label== pred):
+                n_class_correct[label] +=1
+            n_class_samples [label] += 1
+
+    acc= 100.0 *n_correct/n_samples
+    print(f'Accuracy of the network: {acc} %')
+
+
+for i in range(10):
+    acc= 100.0* n_class_correct[i] / n_class_samples[i]
+    print(f'Accuracy of {classes[i]}: {acc} %')
+        
