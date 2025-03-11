@@ -44,4 +44,4 @@ df_plants= pd.DataFrame(data_plants)
 df_merged= df.merge(df_plants, left_on='polygon_id', right_on='polygon_id', how='left')
 
 #export as csv
-df_merged.to_csv(f"timeseries/{folder_name}.csv")
+df_merged.to_csv(f"timeseries/dataset_raw/{folder_name}.csv")
