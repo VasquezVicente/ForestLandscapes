@@ -19,6 +19,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from rasterio.mask import mask
 from shapely.geometry import box
 import shapely.ops
+from statistics import mode
 
 def generate_leafing_pdf(output_pdf, unique_leafing_rows, orthomosaic_path, crowns_per_page=12):
     """
@@ -85,3 +86,37 @@ def generate_leafing_pdf(output_pdf, unique_leafing_rows, orthomosaic_path, crow
 
     print(f"PDF saved: {output_pdf}")
 
+def customLeafing(leafing_values):
+    values = list(leafing_values)
+    sd_values = np.std(values)
+    if len(values) == 1:
+        return values[0]
+    if len(values) >= 2 and sd_values <= 5:
+        result= sum(values) / len(values)
+        return result
+    if len(values) >= 2 and sd_values > 5:
+        try:
+            reference_value = mode(values)
+        except:
+            reference_value = np.median(values)
+        filtered_values = [v for v in values if abs(v - reference_value) <= 5]
+        if filtered_values:
+            result=sum(filtered_values) / len(filtered_values)
+            print("third case", values, "result is:",result)
+            return result
+        else:
+            result= None
+            print("third case", values, "result is:",result)
+            return result
+
+def customFlowering(floweringValues): 
+    floweringValues=list(floweringValues)
+    if len(floweringValues)==1:
+        return floweringValues[0]
+    if all(value == floweringValues[0] for value in floweringValues):
+            return floweringValues[0]
+    if "maybe" in floweringValues:
+        return "maybe"
+    if "yes" in floweringValues and "no" in floweringValues:
+        return "maybe"
+    

@@ -14,12 +14,18 @@ from shapely.geometry import box
 import matplotlib.patches as patches
 from shapely.affinity import affine_transform
 
+training_dataset=gpd.read_file(r"timeseries/dataset_training/train_sgbt.csv")
+columns_to_convert = ['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'rSD', 'gSD', 'bSD',
+                      'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD', 'leafing']
 
+for col in columns_to_convert:
+    training_dataset[col] = pd.to_numeric(training_dataset[col], errors='coerce')
 
-training_dataset=gpd.read_file(r"timeseries/training_dataset.shp")
-print(training_dataset.columns)
+# Now check the datatypes
+print(training_dataset.dtypes)
 
-
+training_dataset=training_dataset[training_dataset['leafing']<=100]
+print(training_dataset['leafing'].describe())
 
 #split the features and output
 X=training_dataset[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'rSD', 'gSD', 'bSD',
@@ -28,7 +34,6 @@ y=training_dataset[['leafing']]
 
 #split dataset for training and testing
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
-
 
 model = XGBRegressor(
     n_estimators=4000,
@@ -49,13 +54,6 @@ y_pred = model.predict(X_test)
 # Calculate RMSE (Root Mean Squared Error)
 rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 print(f"Test RMSE: {rmse:.4f}")
-
-
-plt.plot(y_test, y_pred, 'o')  # 'o' will plot points as circles
-plt.xlabel('Actual Values')
-plt.ylabel('Predicted Values')
-plt.title('Predicted vs Actual Values')
-plt.show()
 
 plt.figure(figsize=(8, 6))
 plt.scatter(y_test, y_pred, color='blue', alpha=0.5, label='Predictions')

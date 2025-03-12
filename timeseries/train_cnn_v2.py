@@ -19,7 +19,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #Parameters
 num_epochs=4
-batch_size=4 
+batch_size=4
 learning_rate= 0.001
 
 #define transform
@@ -46,7 +46,7 @@ class CrownDataset(Dataset):
             image = self.transform(image)
         return image, labels
 
-dataset = CrownDataset(csv_file=r"timeseries/train_dataset.csv", root_dir=os.path.join(data_path,"train_dataset"), transform=transform)
+dataset = CrownDataset(csv_file=r"timeseries/dataset_training/train_cnn.csv", root_dir=os.path.join(data_path,"train_dataset"), transform=transform)
 
 train_size = int(0.9 * len(dataset))  # 90% for training
 test_size = len(dataset) - train_size  # 10% for testing
@@ -95,7 +95,7 @@ for epoch in range(num_epochs):
         images = images.to(device)
         labels = labels.to(device).float()
         outputs= model(images)
-        print(outputs)
+        #print(outputs)
         loss = criterion(outputs.view(-1), labels)
         optimizer.zero_grad()
         loss.backward()
@@ -133,4 +133,7 @@ plt.ylabel('Predicted Values (Leafing)')
 plt.title('True vs Predicted Leafing Values')
 plt.legend()
 plt.grid(True)
+plt.show()
+
+plt.savefig('plots/cnn_second.png')  # Save to the 'plots' directory
 plt.show()
