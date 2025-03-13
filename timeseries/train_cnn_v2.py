@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader, random_split
-
+from sklearn.metrics import mean_squared_error
 #path
 data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
 
@@ -26,12 +26,12 @@ learning_rate= 0.001
 transform = transforms.Compose([
     transforms.Resize((224, 224)),  #224 for now
     transforms.ToTensor(),  
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # Normalize to [-1, 1]
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # Normalize to [-1, 1], is this the issue?
 ])
 
 class CrownDataset(Dataset):
     def __init__(self, csv_file, root_dir, transform=None):
-        self.annotations = pd.read_csv(csv_file)  # 
+        self.annotations = pd.read_csv(csv_file)  
         self.root_dir = root_dir
         self.transform = transform
 
@@ -111,8 +111,8 @@ print('Finish Training')
 true_values = []
 predicted_values = []
 
-with torch.no_grad():  # Disable gradient computation during inference
-    model.eval()  # Set model to evaluation mode
+with torch.no_grad():  
+    model.eval()  
     for images, labels in test_loader:
         images = images.to(device)
         labels = labels.to(device)
@@ -121,19 +121,19 @@ with torch.no_grad():  # Disable gradient computation during inference
         outputs = model(images)
         
         # Collect true and predicted values
-        true_values.extend(labels.cpu().numpy())  # Move labels to CPU and convert to numpy
-        predicted_values.extend(outputs.cpu().numpy())  # Move outputs to CPU and convert to numpy
+        true_values.extend(labels.cpu().numpy())  
+        predicted_values.extend(outputs.cpu().numpy())  
+
+rmse = np.sqrt(mean_squared_error(true_values, predicted_values))
+print(f"RMSE: {rmse:.4f}")
 
 # Plotting the true vs predicted values
 plt.figure(figsize=(8, 6))
 plt.scatter(true_values, predicted_values, color='blue', alpha=0.5, label='Predictions')
-plt.plot([0, 100], [0, 100], color='red', linestyle='--', label='Ideal line')  # Line for perfect prediction
+plt.plot([0, 100], [0, 100], color='red', linestyle='--', label='Ideal line')  
 plt.xlabel('True Values (Leafing)')
 plt.ylabel('Predicted Values (Leafing)')
 plt.title('True vs Predicted Leafing Values')
 plt.legend()
 plt.grid(True)
-plt.show()
-
-plt.savefig('plots/cnn_second.png')  # Save to the 'plots' directory
 plt.show()
