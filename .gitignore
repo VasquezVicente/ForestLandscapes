@@ -25,6 +25,7 @@ LandscapeScripts/metadata.py
 *.dbf
 *.prj
 *.pdf
+*.ndjson
 *.cpg
 *.json
 *.xml

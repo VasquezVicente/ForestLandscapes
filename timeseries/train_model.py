@@ -15,8 +15,9 @@ import matplotlib.patches as patches
 from shapely.affinity import affine_transform
 
 training_dataset=gpd.read_file(r"timeseries/dataset_training/train_sgbt.csv")
-columns_to_convert = ['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'rSD', 'gSD', 'bSD',
-                      'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD', 'leafing']
+
+columns_to_convert = ['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM','shadowM','rSD', 'gSD', 'bSD',
+                      'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD','entropy','elevSD','leafing']
 
 for col in columns_to_convert:
     training_dataset[col] = pd.to_numeric(training_dataset[col], errors='coerce')
@@ -24,12 +25,10 @@ for col in columns_to_convert:
 # Now check the datatypes
 print(training_dataset.dtypes)
 
-training_dataset=training_dataset[training_dataset['leafing']<=100]
-print(training_dataset['leafing'].describe())
-
+training_dataset=training_dataset[~training_dataset['leafing'].isna()]
 #split the features and output
-X=training_dataset[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'rSD', 'gSD', 'bSD',
-       'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD']]
+X=training_dataset[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'shadowM','rSD', 'gSD', 'bSD',
+       'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD','entropy','elevSD']]
 y=training_dataset[['leafing']]
 
 #split dataset for training and testing
@@ -64,3 +63,24 @@ plt.title('True vs Predicted Leafing Values')
 plt.legend()
 plt.grid(True)
 plt.show()
+
+from timeseries.utils import generate_leafing_pdf
+
+training_dataset.loc[y_test.index, 'leafing_predicted'] = y_pred
+filtered_dataset = training_dataset[training_dataset['leafing_predicted'].notna()]
+filtered_dataset['bias'] = filtered_dataset['leafing_predicted'] - filtered_dataset['leafing']
+filtered_dataset2 = filtered_dataset[abs(filtered_dataset['bias']) > 5]
+data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
+path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
+crowns=gpd.read_file(path_crowns)
+crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
+
+merged_filtered= crowns[['polygon_id','geometry']].merge(filtered_dataset2, left_on='polygon_id',right_on='polygon_id', how='left')
+merged_filtered= merged_filtered[merged_filtered['leafing_predicted'].notna()]
+merged_filtered.iterrows()
+
+
+merged_filtered.to_file(r"timeseries/dataset_results/sgbt_run2.shp")
+
+generate_leafing_pdf(merged_filtered,r"plots/leafing_predicted.pdf", r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\orthomosaic_aligned_local",crowns_per_page=12,variables=['leafing','leafing_predicted'])
+

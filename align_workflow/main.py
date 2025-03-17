@@ -29,32 +29,6 @@ crop_raster(sherman_2025, sherman_2025_out,sherman_shape)
 #align the target to the reference
 sherman_2021_out_align=os.path.join(os.path.dirname(sherman_2021),os.path.basename(sherman_2021_out).replace("_shermansub.tif","_shermanaligned.tif"))
 
-
-def align_orthomosaics(reference, target, target_out):
-    """
-    Aligns orthomosaics using arosics module, parameters are hard coded in this version. 
-
-    Parameters:
-        reference(str): Full path to orthomosaic to be used as reference orthomosaic
-        target(str): Full path to target orthomosaic
-        target_out(str): Full path of aligned orthomosaic
-    """
-    kwargs = {  'grid_res': 100,
-                'window_size': (512, 512),
-                'path_out': target_out,
-                'fmt_out': 'GTIFF',
-                'q': False,
-                'min_reliability': 5,
-                'r_b4match': 2,
-                's_b4match': 2,
-                'max_shift': 100,
-                'nodata':(0, 0),
-                'match_gsd':False,
-                        }
-    CRL = arosics.COREG_LOCAL(reference, target, **kwargs)
-    CRL.calculate_spatial_shifts()
-    CRL.correct_shifts()
-    print("finish align")
 align_orthomosaics(sherman_2025_out,sherman_2021_out,sherman_2021_out_align)
 
 

@@ -1,23 +1,60 @@
-import rasterio
-from rasterio.mask import mask
-import os
-import shapely
-import geopandas as gpd
-import numpy as np
-import matplotlib.pyplot as plt
-from shapely.geometry import box
-import matplotlib.patches as patches
-from shapely.affinity import affine_transform
-from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
-import numpy as np
 import os
-import rasterio
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-from rasterio.mask import mask
-from shapely.geometry import box
-import shapely.ops
+import geopandas as gpd
+from timeseries.utils import generate_leafing_pdf
+
+#load polygons
+data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
+path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")
+path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
+crowns=gpd.read_file(path_crowns)
+crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
+
+#load the cnn dataset
+cnn_run2= pd.read_csv(r"timeseries/dataset_results/cnn_run2.csv")
+cnn_predicted= crowns.merge(cnn_run2,left_on='polygon_id', right_on='polygon_id', how='left')
+
+#filter the non predicted crowns
+cnn_predicted=cnn_predicted[cnn_predicted['leafing_predicted'].notna()]
+generate_leafing_pdf(cnn_predicted,r"plots/leafing_cnn2.pdf" ,path_ortho,crowns_per_page=12, variables=['leafing_predicted','leafing'])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+training_dataset.loc[y_test.index, 'leafing_predicted'] = y_pred
+filtered_dataset = training_dataset[training_dataset['leafing_predicted'].notna()]
+filtered_dataset['bias'] = filtered_dataset['leafing_predicted'] - filtered_dataset['leafing']
+filtered_dataset2 = filtered_dataset[abs(filtered_dataset['bias']) > 5]
+data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
+path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
+crowns=gpd.read_file(path_crowns)
+crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
+
+merged_filtered= crowns[['polygon_id','geometry']].merge(filtered_dataset2, left_on='polygon_id',right_on='polygon_id', how='left')
+merged_filtered= merged_filtered[merged_filtered['leafing_predicted'].notna()]
+
+merged_filtered.to_file(r"timeseries/dataset_results/sgbt_run2.shp")
+generate_leafing_pdf(r"plots/leafing_predicted.pdf", merged_filtered, r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\orthomosaic_aligned_local")
+
+
 
 def generate_leafing_pdf(output_pdf, unique_leafing_rows, orthomosaic_path, crowns_per_page=12):
     """
@@ -82,6 +119,8 @@ def generate_leafing_pdf(output_pdf, unique_leafing_rows, orthomosaic_path, crow
                     axes = axes.flatten()
 
     print(f"PDF saved: {output_pdf}")
+
+
 
 
 #PATHS

@@ -20,8 +20,7 @@ from rasterio.mask import mask
 from shapely.geometry import box
 import shapely.ops
 from statistics import mode
-
-def generate_leafing_pdf(output_pdf, unique_leafing_rows, orthomosaic_path, crowns_per_page=12):
+def generate_leafing_pdf(unique_leafing_rows, output_pdf, orthomosaic_path, crowns_per_page=12, variables=[]):
     """
     Generates a PDF with deciduous crowns plotted.
 
@@ -30,6 +29,7 @@ def generate_leafing_pdf(output_pdf, unique_leafing_rows, orthomosaic_path, crow
         unique_leafing_rows (GeoDataFrame): DataFrame containing crown geometries and metadata.
         orthomosaic_path (str): Path to the orthomosaic folder containing image files.
         crowns_per_page (int): Number of crowns to plot per page (default: 12).
+        variables(tupple): must be numeric variables. 
     """
     crowns_plotted = 0
 
@@ -61,12 +61,14 @@ def generate_leafing_pdf(output_pdf, unique_leafing_rows, orthomosaic_path, crow
                     ax.axis('off')
 
                     # Add text label
-                    latin_name = row['latin']
-                    numeric_feature_1 = row['leafing']
-                    numeric_feature_2 = row['date']
-                    ax.text(5, 5, f"{latin_name}\nLeafing: {numeric_feature_1}\date: {numeric_feature_2}",
+                    annotation_text = f"{row['latin']}\n"
+                    for var in variables:
+                        if var in row:
+                            annotation_text += f"{var}: {row[var]:.2f}\n"
+            
+                    # Add text label
+                    ax.text(5, 5, annotation_text.strip(),
                             fontsize=12, color='white', backgroundcolor='black', verticalalignment='top')
-
                     crowns_plotted += 1
 
             except Exception as e:
@@ -83,7 +85,6 @@ def generate_leafing_pdf(output_pdf, unique_leafing_rows, orthomosaic_path, crow
                 if i != len(unique_leafing_rows) - 1:  # Prevent unnecessary re-creation at end
                     fig, axes = plt.subplots(4, 3, figsize=(15, 20))
                     axes = axes.flatten()
-
     print(f"PDF saved: {output_pdf}")
 
 def customLeafing(leafing_values):
@@ -108,6 +109,33 @@ def customLeafing(leafing_values):
             result= None
             print("third case", values, "result is:",result)
             return result
+
+
+def customLeafingNumeric(floweringN):
+    values = list(floweringN)
+    #easy stuff, if it is a maybe and is not confirmed, then replace all values == 2 to 0
+    values = [0 if value == 2 else value for value in floweringN]
+    sd_values = np.std(values)
+    if len(values) == 1:
+        return values[0]
+    if len(values) >= 2 and sd_values <= 5:
+        result= sum(values) / len(values)
+        return result
+    if len(values) >= 2 and sd_values > 5:
+        try:
+            reference_value = mode(values)
+        except:
+            reference_value = np.median(values)
+        filtered_values = [v for v in values if abs(v - reference_value) <= 5]
+        if filtered_values:
+            result=sum(filtered_values) / len(filtered_values)
+            print("third case", values, "result is:",result)
+            return result
+        else:
+            result= None
+            print("third case", values, "result is:",result)
+            return result
+
 
 def customFlowering(floweringValues): 
     floweringValues=list(floweringValues)

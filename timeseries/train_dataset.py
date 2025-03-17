@@ -12,7 +12,7 @@ from shapely.affinity import affine_transform
 from matplotlib.backends.backend_pdf import PdfPages
 from skimage.feature import graycomatrix, graycoprops
 from skimage import img_as_ubyte
-from timeseries.timeseries_tools import generate_leafing_pdf, customFlowering, customLeafing
+from timeseries.utils import generate_leafing_pdf, customFlowering, customLeafing
 import seaborn as sns
 from PIL import Image
 
@@ -84,6 +84,25 @@ for i, (_, row) in enumerate(crowns_labeled_avg.iterrows()):
             print(f"Error processing {row['polygon_id']}: {e}")
     else:
         print("it already exists in dataset")
+
+ with rasterio.open(path_orthomosaic) as src:
+    bounds = row.geometry.bounds
+                    box_crown_5 = box(bounds[0] - 5, bounds[1] - 5, bounds[2] + 5, bounds[3] + 5)
+
+                    out_image, out_transform = mask(src, [box_crown_5], crop=True)
+                    x_min, y_min = out_transform * (0, 0)
+                    xres, yres = out_transform[0], out_transform[4]
+
+                    # Transform geometry
+                    transformed_geom = shapely.ops.transform(
+                        lambda x, y: ((x - x_min) / xres, (y - y_min) / yres),
+                        row.geometry
+                    )
+
+                    ax = axes[crowns_plotted % crowns_per_page]
+                    ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
+                    ax.plot(*transformed_geom.exterior.xy, color='red', linewidth=2)
+                    ax.axis('off')       
 
 
 print(crowns_labeled_avg['leafing'].describe())

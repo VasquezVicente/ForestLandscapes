@@ -18,9 +18,9 @@ data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #Parameters
-num_epochs=4
+num_epochs=6
 batch_size=4
-learning_rate= 0.001
+learning_rate= 0.0001
 
 #define transform
 transform = transforms.Compose([
@@ -44,7 +44,7 @@ class CrownDataset(Dataset):
         labels = float(self.annotations.iloc[idx, 2])  
         if self.transform:
             image = self.transform(image)
-        return image, labels
+        return image, labels, img_name
 
 dataset = CrownDataset(csv_file=r"timeseries/dataset_training/train_cnn.csv", root_dir=os.path.join(data_path,"train_dataset"), transform=transform)
 
@@ -55,8 +55,8 @@ test_size = len(dataset) - train_size  # 10% for testing
 train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
 # Create DataLoaders
-train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 # this is the convolutional neural network architecture
 class CNNRegressor(nn.Module):
@@ -91,7 +91,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 n_total_steps = len(train_loader)
 for epoch in range(num_epochs):
-    for i, (images, labels) in enumerate(train_loader):
+    for i, (images, labels,_) in enumerate(train_loader):
         images = images.to(device)
         labels = labels.to(device).float()
         outputs= model(images)
@@ -110,22 +110,36 @@ print('Finish Training')
 
 true_values = []
 predicted_values = []
+image_names= []
 
 with torch.no_grad():  
     model.eval()  
-    for images, labels in test_loader:
+    for images, labels, image_name in test_loader:
         images = images.to(device)
-        labels = labels.to(device)
-        
+        labels = labels.to(device)  #labeles correspond to leafing 
+        image_n = [os.path.basename(path) for path in image_name]
         # Forward pass
-        outputs = model(images)
+        outputs = model(images)  #outputs correspond to predicted_leafing
         
         # Collect true and predicted values
         true_values.extend(labels.cpu().numpy())  
         predicted_values.extend(outputs.cpu().numpy())  
+        image_names.extend(image_n)
+
 
 rmse = np.sqrt(mean_squared_error(true_values, predicted_values))
 print(f"RMSE: {rmse:.4f}")
+
+data = {
+    'polygon_id': image_names,
+    'leafing_predicted':  [float(arr[0]) for arr in predicted_values],
+    'leafing': true_values
+}
+
+predictions_df = pd.DataFrame(data)
+predictions_df['polygon_id'] = predictions_df['polygon_id'].str.split('.', expand=True)[0]
+predictions_df.to_csv(r'timeseries/dataset_results/cnn_run2.csv')
+
 
 # Plotting the true vs predicted values
 plt.figure(figsize=(8, 6))
@@ -137,3 +151,5 @@ plt.title('True vs Predicted Leafing Values')
 plt.legend()
 plt.grid(True)
 plt.show()
+
+
