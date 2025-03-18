@@ -20,6 +20,8 @@ from rasterio.mask import mask
 from shapely.geometry import box
 import shapely.ops
 from statistics import mode
+from skimage.feature import graycomatrix, graycoprops
+from skimage import img_as_ubyte
 def generate_leafing_pdf(unique_leafing_rows, output_pdf, orthomosaic_path, crowns_per_page=12, variables=[]):
     """
     Generates a PDF with deciduous crowns plotted.
@@ -110,11 +112,8 @@ def customLeafing(leafing_values):
             print("third case", values, "result is:",result)
             return result
 
-
-def customLeafingNumeric(floweringN):
+def customFloweringNumeric(floweringN):
     values = list(floweringN)
-    #easy stuff, if it is a maybe and is not confirmed, then replace all values == 2 to 0
-    values = [0 if value == 2 else value for value in floweringN]
     sd_values = np.std(values)
     if len(values) == 1:
         return values[0]
@@ -136,7 +135,6 @@ def customLeafingNumeric(floweringN):
             print("third case", values, "result is:",result)
             return result
 
-
 def customFlowering(floweringValues): 
     floweringValues=list(floweringValues)
     if len(floweringValues)==1:
@@ -147,4 +145,12 @@ def customFlowering(floweringValues):
         return "maybe"
     if "yes" in floweringValues and "no" in floweringValues:
         return "maybe"
-    
+
+def calculate_glcm_features(image, window_size=5, angles=[0, 45, 90, 135]):
+    glcm_features = []
+    for angle in angles:
+        # Calculate the GLCM for the specified angle
+        glcm = graycomatrix(img_as_ubyte(image), distances=[1], angles=[np.deg2rad(angle)], symmetric=True, normed=True) 
+        correlation = graycoprops(glcm, 'correlation')[0, 0]
+        glcm_features.append(correlation)
+    return glcm_features  

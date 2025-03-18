@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from shapely.geometry import box
 import matplotlib.patches as patches
 from shapely.affinity import affine_transform
+import pickle
 
 training_dataset=gpd.read_file(r"timeseries/dataset_training/train_sgbt.csv")
 
@@ -50,6 +51,7 @@ model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=100)
 # Predict on test set
 y_pred = model.predict(X_test)
 
+
 # Calculate RMSE (Root Mean Squared Error)
 rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 print(f"Test RMSE: {rmse:.4f}")
@@ -64,23 +66,5 @@ plt.legend()
 plt.grid(True)
 plt.show()
 
-from timeseries.utils import generate_leafing_pdf
-
-training_dataset.loc[y_test.index, 'leafing_predicted'] = y_pred
-filtered_dataset = training_dataset[training_dataset['leafing_predicted'].notna()]
-filtered_dataset['bias'] = filtered_dataset['leafing_predicted'] - filtered_dataset['leafing']
-filtered_dataset2 = filtered_dataset[abs(filtered_dataset['bias']) > 5]
-data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
-path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
-crowns=gpd.read_file(path_crowns)
-crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
-
-merged_filtered= crowns[['polygon_id','geometry']].merge(filtered_dataset2, left_on='polygon_id',right_on='polygon_id', how='left')
-merged_filtered= merged_filtered[merged_filtered['leafing_predicted'].notna()]
-merged_filtered.iterrows()
-
-
-merged_filtered.to_file(r"timeseries/dataset_results/sgbt_run2.shp")
-
-generate_leafing_pdf(merged_filtered,r"plots/leafing_predicted.pdf", r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\orthomosaic_aligned_local",crowns_per_page=12,variables=['leafing','leafing_predicted'])
-
+with open(r'timeseries/models/xgb_model.pkl', 'wb') as file:
+    pickle.dump(model, file)

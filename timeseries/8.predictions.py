@@ -1,7 +1,15 @@
 import os
-import geopandas as gpd
 import pandas as pd
+import geopandas as gpd
 import rasterio
+from shapely import box
+import matplotlib.pyplot as plt
+import shapely
+from rasterio.mask import mask
+import numpy as np
+from skimage.filters.rank import entropy
+from skimage.morphology import disk
+import pickle
 from rasterio.mask import mask
 import shapely
 import numpy as np
@@ -16,10 +24,16 @@ import seaborn as sns
 from skimage.filters.rank import entropy
 from skimage.morphology import disk
 
-#PATHS
-data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
-training_dataset=gpd.read_file(r'timeseries/dataset_training/train.shp')
 
+#load polygons
+data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
+path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")
+path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
+crowns=gpd.read_file(path_crowns)
+crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
+
+
+dipteryx_subset= crowns[crowns['latin']=='Dipteryx oleifera'].reset_index()
 pixel_unmixing=gpd.read_file(os.path.join(data_path,'aux_files/pixel_unmixing.shp'))
 gv_pixels = []  # For GV (Green Vegetation)
 npv_pixels = []  # For NPV (Non-photosynthetic Vegetation)
@@ -90,8 +104,8 @@ def calculate_glcm_features(image, window_size=5, angles=[0, 45, 90, 135]):
 
 
 #extract the features, crown based 
-for i, (_, row) in enumerate(training_dataset.iterrows()):
-    print(f"Processing iteration {i + 1} of {len(training_dataset)}")
+for i, (_, row) in enumerate(dipteryx_subset.iterrows()):
+    print(f"Processing iteration {i + 1} of {len(dipteryx_subset)}")
     path_orthomosaic = os.path.join(data_path,'orthomosaic_aligned_local', f"BCI_50ha_{row['date']}_local.tif")
     with rasterio.open(path_orthomosaic) as src:
         out_image, out_transform = mask(src, [row.geometry], crop=True)
@@ -146,26 +160,24 @@ for i, (_, row) in enumerate(training_dataset.iterrows()):
         entropyM=np.nanmean(entropy_image)
         elevSD= np.nanstd(elev)
 
-        training_dataset.at[i, 'rccM'] = rccM
-        training_dataset.at[i, 'gccM'] = gccM
-        training_dataset.at[i, 'bccM'] = bccM
-        training_dataset.at[i, 'ExGM'] = ExGM
-        training_dataset.at[i, 'gvM'] = gvM
-        training_dataset.at[i, 'npvM'] = npvM
-        training_dataset.at[i, 'shadowM'] = shadowM
-        training_dataset.at[i, 'rSD'] = rSD
-        training_dataset.at[i, 'gSD'] = gSD
-        training_dataset.at[i, 'bSD'] = bSD
-        training_dataset.at[i, 'ExGSD'] = ExGSD
-        training_dataset.at[i, 'gvSD'] = gvSD
-        training_dataset.at[i, 'npvSD'] = npvSD
-        training_dataset.at[i, 'gcorSD'] = gcorSD
-        training_dataset.at[i, 'gcorMD'] = gcorMD
-        training_dataset.at[i, 'entropy']= entropyM
-        training_dataset.at[i, 'elevSD']= elevSD
+        dipteryx_subset.at[i, 'rccM'] = rccM
+        dipteryx_subset.at[i, 'gccM'] = gccM
+        dipteryx_subset.at[i, 'bccM'] = bccM
+        dipteryx_subset.at[i, 'ExGM'] = ExGM
+        dipteryx_subset.at[i, 'gvM'] = gvM
+        dipteryx_subset.at[i, 'npvM'] = npvM
+        dipteryx_subset.at[i, 'shadowM'] = shadowM
+        dipteryx_subset.at[i, 'rSD'] = rSD
+        dipteryx_subset.at[i, 'gSD'] = gSD
+        dipteryx_subset.at[i, 'bSD'] = bSD
+        dipteryx_subset.at[i, 'ExGSD'] = ExGSD
+        dipteryx_subset.at[i, 'gvSD'] = gvSD
+        dipteryx_subset.at[i, 'npvSD'] = npvSD
+        dipteryx_subset.at[i, 'gcorSD'] = gcorSD
+        dipteryx_subset.at[i, 'gcorMD'] = gcorMD
+        dipteryx_subset.at[i, 'entropy']= entropyM
+        dipteryx_subset.at[i, 'elevSD']= elevSD
 
-training_dataset=training_dataset.drop(columns=['geometry'])
+dipteryx_subset=dipteryx_subset.drop(columns=['geometry'])
 
-training_dataset.to_csv(r"timeseries/dataset_training/train_sgbt.csv")
-
-        
+dipteryx_subset.to_csv(r"timeseries/dataset_predictions/dipteryx_sgbt.csv")

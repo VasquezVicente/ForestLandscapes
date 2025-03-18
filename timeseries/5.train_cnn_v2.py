@@ -152,4 +152,6 @@ plt.legend()
 plt.grid(True)
 plt.show()
 
+torch.save(model.state_dict(), 'timeseries/models/cnn_model.pth')
+
 

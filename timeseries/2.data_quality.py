@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import geopandas as gpd
-from timeseries.utils import generate_leafing_pdf, customFlowering, customLeafing
+from timeseries.utils import generate_leafing_pdf, customFlowering, customLeafing, customFloweringNumeric
 import rasterio
 from shapely import box
 import matplotlib.pyplot as plt
@@ -34,72 +34,20 @@ crowns_labeled= all_data.merge(crowns[['area', 'score', 'tag', 'iou', 'geometry'
                                   how="left")
 
 #data quality
-crowns_labeled= crowns_labeled[crowns_labeled["segmentation"]=="good"]
+crowns_labeled= crowns_labeled[(crowns_labeled["segmentation"]=="good")|(crowns_labeled["segmentation"]=="okay")]
 
-
-#####this is for extracting the flower crowns
-crowns_flower = crowns_labeled[(crowns_labeled['isFlowering'] == 'yes') | (crowns_labeled['isFlowering'] == 'maybe')]
-path_out= os.path.join(data_path,'flower_dataset')
-
-#extract the features, crown based 
-for i, (_, row) in enumerate(crowns_flower.iterrows()):
-    print(f"Processing iteration {i + 1} of {len(crowns_flower)}")
-    if not os.path.exists(os.path.join(path_out, row['polygon_id']+".png")):
-        path_orthomosaic = os.path.join(data_path, 'orthomosaic_aligned_local', f"BCI_50ha_{row['date']}_local.tif")
-        try:
-            with rasterio.open(path_orthomosaic) as src:
-                bounds = row.geometry.bounds
-                box_crown_5 = box(bounds[0] - 5, bounds[1] - 5, bounds[2] + 5, bounds[3] + 5)
-                print(box_crown_5)
-                out_image, out_transform = mask(src, [box_crown_5], crop=True)
-                x_min, y_min = out_transform * (0, 0)
-                xres, yres = out_transform[0], out_transform[4]
-
-                transformed_geom = shapely.ops.transform(
-                        lambda x, y: ((x - x_min) / xres, (y - y_min) / yres),
-                        row.geometry
-                    )
                 
-                img_name = f"{row['polygon_id']}.png"
-                img_path = os.path.join(path_out, img_name)
-
-                fig, ax = plt.subplots(figsize=(10, 10))
-
-                ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
-
-                ax.plot(*transformed_geom.exterior.xy, color='red')
-
-                for interior in transformed_geom.interiors:
-                    ax.plot(*interior.xy, color='red')
-
-                ax.axis('off')
-
-                fig.savefig(img_path, bbox_inches='tight', pad_inches=0)
-                plt.close(fig)
-                
-                print(f"Saved: {img_path}")
-
-        except Exception as e:
-            print(f"Error processing {row['polygon_id']}: {e}")
-    else:
-        print("it already exists in dataset")
-
-crowns_flower=crowns_flower.drop(columns=['geometry'])
-crowns_flower.to_csv(r"timeseries/dataset_corrections/check_flower1.csv")
-######################
-
-
-                    
-
 #saturate with corrections
 check0=pd.read_csv(r"timeseries/dataset_corrections/check_0.csv")
 check_01=pd.read_csv(r"timeseries/dataset_corrections/check_01.csv")
 crowns_final=pd.concat([crowns_labeled,check0,check0,check0,check_01,check_01,check_01]) #saturate the dataset to make the lcustum leafing trigger its conditions
 
+crowns_final['floweringIntensity'] = crowns_final['floweringIntensity'].fillna(0)
 
 crowns_labeled_avg = crowns_final.groupby("polygon_id").agg({
     "leafing": customLeafing,
     "isFlowering":customFlowering,
+    "floweringIntensity": customFloweringNumeric,
     "latin": "first",  
     "geometry": "first",
     "date":"first",
@@ -108,6 +56,10 @@ crowns_labeled_avg = crowns_final.groupby("polygon_id").agg({
     "iou":"first",
     "score":"first"
 }).reset_index()
+
+cnn_dataset= crowns_labeled_avg[['polygon_id','leafing']]
+cnn_dataset['polygon_id']=cnn_dataset["polygon_id"]+'.png'
+cnn_dataset.to_csv(r'timeseries/dataset_training/train_cnn.csv')
 
 crowns_labeled_avg = gpd.GeoDataFrame(crowns_labeled_avg, geometry='geometry')
 crowns_labeled_avg.set_crs("EPSG:32617", allow_override=True, inplace=True)  
