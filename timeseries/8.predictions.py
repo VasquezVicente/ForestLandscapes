@@ -181,3 +181,43 @@ for i, (_, row) in enumerate(dipteryx_subset.iterrows()):
 dipteryx_subset=dipteryx_subset.drop(columns=['geometry'])
 
 dipteryx_subset.to_csv(r"timeseries/dataset_predictions/dipteryx_sgbt.csv")
+
+dipteryx_predict= pd.read_csv(r'timeseries/dataset_predictions/dipteryx_sgbt.csv')
+dipteryx_predict.columns
+
+with open(r'timeseries/models/xgb_model.pkl', 'rb') as file:
+      model = pickle.load(file)
+
+X=dipteryx_predict[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'shadowM','rSD', 'gSD', 'bSD',
+       'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD','entropy','elevSD']]
+
+Y= dipteryx_predict[['area', 'score', 'tag', 'GlobalID', 'iou',
+       'date', 'latin', 'polygon_id']]
+X_predicted=model.predict(X)
+df_final = Y.copy()  # Copy Y to keep the same structure
+df_final['leafing_predicted'] = X_predicted
+
+df_final['date'] = pd.to_datetime(df_final['date'], format='%Y_%m_%d')
+df_final.columns
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+df_final = df_final.sort_values(by=['GlobalID', 'date'])
+
+# Set plot size
+plt.figure(figsize=(12, 6))
+
+# Plot one line per GlobalID
+sns.lineplot(data=df_final, x='date', y='leafing_predicted', hue='GlobalID', estimator=None, lw=2)
+
+# Formatting
+plt.xlabel('Date')
+plt.ylabel('Leafing Predicted')
+plt.title('Leafing Predictions Over Time for Each GlobalID')
+plt.xticks(rotation=45)
+plt.legend(title='GlobalID', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(True)
+
+# Show the plot
+plt.show()

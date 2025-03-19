@@ -34,7 +34,8 @@ crowns_labeled= all_data.merge(crowns[['area', 'score', 'tag', 'iou', 'geometry'
                                   how="left")
 
 #data quality
-crowns_labeled= crowns_labeled[(crowns_labeled["segmentation"]=="good")|(crowns_labeled["segmentation"]=="okay")]
+#crowns_labeled= crowns_labeled[(crowns_labeled["segmentation"]=="good")|(crowns_labeled["segmentation"]=="okay")]
+crowns_labeled= crowns_labeled[crowns_labeled["segmentation"]=="good"]
 
                 
 #saturate with corrections
@@ -56,6 +57,8 @@ crowns_labeled_avg = crowns_final.groupby("polygon_id").agg({
     "iou":"first",
     "score":"first"
 }).reset_index()
+
+crowns_labeled_avg=crowns_labeled_avg[~crowns_labeled_avg['leafing'].isna()]
 
 cnn_dataset= crowns_labeled_avg[['polygon_id','leafing']]
 cnn_dataset['polygon_id']=cnn_dataset["polygon_id"]+'.png'

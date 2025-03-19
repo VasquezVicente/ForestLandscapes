@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import geopandas as gpd
 from timeseries.utils import generate_leafing_pdf
+import matplotlib.pyplot as plt
 
 #load polygons
 data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
@@ -20,134 +21,10 @@ generate_leafing_pdf(cnn_predicted,r"plots/leafing_cnn2.pdf" ,path_ortho,crowns_
 
 
 
+####visualization of last run of labels 2055
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-training_dataset.loc[y_test.index, 'leafing_predicted'] = y_pred
-filtered_dataset = training_dataset[training_dataset['leafing_predicted'].notna()]
-filtered_dataset['bias'] = filtered_dataset['leafing_predicted'] - filtered_dataset['leafing']
-filtered_dataset2 = filtered_dataset[abs(filtered_dataset['bias']) > 5]
-data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
-path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
-crowns=gpd.read_file(path_crowns)
-crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
-
-merged_filtered= crowns[['polygon_id','geometry']].merge(filtered_dataset2, left_on='polygon_id',right_on='polygon_id', how='left')
-merged_filtered= merged_filtered[merged_filtered['leafing_predicted'].notna()]
-
-merged_filtered.to_file(r"timeseries/dataset_results/sgbt_run2.shp")
-generate_leafing_pdf(r"plots/leafing_predicted.pdf", merged_filtered, r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\orthomosaic_aligned_local")
-
-
-
-def generate_leafing_pdf(output_pdf, unique_leafing_rows, orthomosaic_path, crowns_per_page=12):
-    """
-    Generates a PDF with deciduous crowns plotted.
-
-    Parameters:
-        output_pdf (str): Path to the output PDF file.
-        unique_leafing_rows (GeoDataFrame): DataFrame containing crown geometries and metadata.
-        orthomosaic_path (str): Path to the orthomosaic folder containing image files.
-        crowns_per_page (int): Number of crowns to plot per page (default: 12).
-    """
-    crowns_plotted = 0
-
-    with PdfPages(output_pdf) as pdf_pages:
-        fig, axes = plt.subplots(4, 3, figsize=(15, 20))
-        axes = axes.flatten()
-
-        for i, (_, row) in enumerate(unique_leafing_rows.iterrows()):
-            path_orthomosaic = os.path.join(orthomosaic_path, f"BCI_50ha_{row['date']}_local.tif")
-
-            try:
-                with rasterio.open(path_orthomosaic) as src:
-                    bounds = row.geometry.bounds
-                    box_crown_5 = box(bounds[0] - 5, bounds[1] - 5, bounds[2] + 5, bounds[3] + 5)
-
-                    out_image, out_transform = mask(src, [box_crown_5], crop=True)
-                    x_min, y_min = out_transform * (0, 0)
-                    xres, yres = out_transform[0], out_transform[4]
-
-                    # Transform geometry
-                    transformed_geom = shapely.ops.transform(
-                        lambda x, y: ((x - x_min) / xres, (y - y_min) / yres),
-                        row.geometry
-                    )
-
-                    ax = axes[crowns_plotted % crowns_per_page]
-                    ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
-                    ax.plot(*transformed_geom.exterior.xy, color='red', linewidth=2)
-                    ax.axis('off')
-
-                    # Add text label
-                    latin_name = row['latin']
-                    numeric_feature_1 = row['leafing']
-                    ax.text(5, 5, f"{latin_name}\nLeafing: {numeric_feature_1}",
-                            fontsize=12, color='white', backgroundcolor='black', verticalalignment='top')
-
-                    crowns_plotted += 1
-
-            except Exception as e:
-                print(f"Error processing {path_orthomosaic}: {e}")
-                continue  # Skip the current iteration if an error occurs
-
-            # Save PDF and start a new page every `crowns_per_page` crowns
-            if crowns_plotted % crowns_per_page == 0 or i == len(unique_leafing_rows) - 1:
-                plt.tight_layout()
-                pdf_pages.savefig(fig)
-                plt.close(fig)
-
-                # Create new figure for the next batch
-                if i != len(unique_leafing_rows) - 1:  # Prevent unnecessary re-creation at end
-                    fig, axes = plt.subplots(4, 3, figsize=(15, 20))
-                    axes = axes.flatten()
-
-    print(f"PDF saved: {output_pdf}")
-
-
-
-
-#PATHS
-data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
-#data_path=r"C:\Users\Vicente\Documents\Data"
-path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
-labels_path=r"timeseries/export_2025_03_05.csv"
-orthomosaic_path=os.path.join(data_path,"orthomosaic_aligned_local")
-
-#list of orthomosaics
-orthomosaic_list=os.listdir(orthomosaic_path)
-
-#open gdf containing polygons
-crowns=gpd.read_file(path_crowns)
-crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
-#open df containing labels
-labels=pd.read_csv(labels_path)
-#merge labels and crowns, keeping only labeled ones
-crowns_labeled= labels.merge(crowns[['area', 'score', 'tag', 'iou', 'geometry','polygon_id']],
-                              left_on="polygon_id",
-                                right_on="polygon_id",
-                                  how="left")
-
-
-
-
-
+labels= gpd.read_file(r"timeseries/dataset_training/train.shp")
+labels['latin']
 #plot of most labeled species
 species_counts = labels["latin"].value_counts()
 top_species = species_counts.head(10)
@@ -155,6 +32,37 @@ plt.figure(figsize=(8, 8))
 plt.pie(top_species, labels=top_species.index, autopct='%1.1f%%', startangle=140, colors=plt.cm.Paired.colors)
 plt.title("Most Labeled Species")
 plt.show()
+
+flowering_count= labels['isFlowerin'].value_counts()
+plt.figure(figsize=(8, 8))
+plt.pie(flowering_count, labels=flowering_count.index, autopct='%1.1f%%', startangle=140, colors=plt.cm.Paired.colors)
+plt.title("Flowering individuals")
+plt.show()
+
+plt.figure(figsize=(8, 6))
+plt.hist(labels['leafing'], bins=10, color='skyblue', edgecolor='black')  # Adjust bins as needed
+plt.xlabel("Leaf Coverage Percentage")
+plt.ylabel("Frequency")
+plt.title("Histogram of Leafing")
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.show()
+
+
+#lets plot some flowering individuals for the people
+flowering=labels[(labels['isFlowerin']=="yes")|(labels['isFlowerin']=="maybe")]
+flowering['latin']
+data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
+path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")
+generate_leafing_pdf(flowering,r'plots/flowering.pdf',path_ortho,crowns_per_page=12, variables=['floweringI','leafing'])
+
+
+
+
+
+
+
+
+
 
 #plot individuals labeled by species
 individual_counts = labels.groupby("latin")["globalId"].nunique().sort_values(ascending=False)

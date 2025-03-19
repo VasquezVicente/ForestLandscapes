@@ -17,6 +17,7 @@ import pickle
 
 training_dataset=gpd.read_file(r"timeseries/dataset_training/train_sgbt.csv")
 
+
 columns_to_convert = ['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM','shadowM','rSD', 'gSD', 'bSD',
                       'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD','entropy','elevSD','leafing']
 
