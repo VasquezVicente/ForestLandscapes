@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from rasterio.mask import mask
 import rasterio
 from shapely import box
-from align_workflow.utils import crop_raster, align_orthomosaics
+from full_workflow.utils import crop_raster, align_orthomosaics
 
 #hyperparameters
 buffer=20 #20 meters to the shape to avoid issues
@@ -29,6 +29,10 @@ crop_raster(sherman_2025, sherman_2025_out,sherman_shape)
 #align the target to the reference
 sherman_2021_out_align=os.path.join(os.path.dirname(sherman_2021),os.path.basename(sherman_2021_out).replace("_shermansub.tif","_shermanaligned.tif"))
 
-align_orthomosaics(sherman_2025_out,sherman_2021_out,sherman_2021_out_align)
+align_orthomosaics(sherman_2025_out,sherman_2021_out,sherman_2021_out_align) # if this fails, the orthomosaic needs to be georeferenced in arcgis pro
+
+#next step is to transfer the labels, for that we need crown segment
+
+
 
 

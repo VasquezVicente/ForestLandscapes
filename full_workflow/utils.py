@@ -16,11 +16,54 @@ from datetime import datetime
 from rasterio.mask import mask
 
 ###FUNCTION
-def tile_ortho(sub, buffer, output_folder, gridInfo):
+def tile_ortho(sub, tile_size, buffer, output_folder):
+    """
+    Crops input raster to shape provided by a shapely polygon
+
+    Parameters:
+        sub= Full path to raster to be cropped(str) accepts os paths
+        tile_size= tile size in meters (float)
+        buffer= buffer in meters (float)
+        output_folder= folder to save the tiles(path)  
+    """
+    #output folder should be changed to be a temporary file, to avoid issues with storage
+    with rasterio.open(sub) as src:
+        bounds = src.bounds
+        xmin, ymin, xmax, ymax = bounds
+        if tile_size <= 0:
+            raise ValueError("tile_size must be greater than zero.")      
+        x_range = xmax - xmin
+        y_range = ymax - ymin
+        x_tiles = int(np.ceil(x_range / tile_size))
+        y_tiles = int(np.ceil(y_range / tile_size))
+        x_residual = x_range % tile_size
+        y_residual = y_range % tile_size
+        if x_residual > 0:
+            tile_size_x = tile_size + x_residual / x_tiles
+        else:
+            tile_size_x = tile_size
+        if y_residual > 0:
+            tile_size_y = tile_size + y_residual / y_tiles
+        else:
+            tile_size_y = tile_size
+        if x_residual > 0 or y_residual > 0:
+            print(f"Warning: Adjusted tile size used for residual coverage - X: {tile_size_x}, Y: {tile_size_y}")
+        xmins = np.arange(xmin, (xmax - tile_size_x + 1), tile_size_x)
+        xmaxs = np.arange((xmin + tile_size_x), xmax + 1, tile_size_x)
+        ymins = np.arange(ymin, (ymax - tile_size_y + 1), tile_size_y)
+        ymaxs = np.arange((ymin + tile_size_y), ymax + 1, tile_size_y)
+        X, Y = np.meshgrid(xmins, ymins)
+        Xmax, Ymax = np.meshgrid(xmaxs, ymaxs)
+        gridInfo = pd.DataFrame({
+            'xmin': X.flatten(),
+            'ymin': Y.flatten(),
+            'xmax': Xmax.flatten(),
+            'ymax': Ymax.flatten(),
+        })
+        print(gridInfo)
     with rasterio.open(sub) as src:
         for idx, row in gridInfo.iterrows():
-            geom= row['geometry']
-            geom2 = box(geom.bounds[0]-buffer, geom.bounds[1]-buffer, geom.bounds[2]+buffer, geom.bounds[3]+buffer)
+            geom2 = box1(row['xmin']-buffer, row['ymin']-buffer, row['xmax']+buffer, row['ymax']+buffer)
             out_image, out_transform = rasterio.mask.mask(src, [geom2], crop=True)
             # Update metadata for the output raster
             out_meta = src.meta
@@ -30,11 +73,11 @@ def tile_ortho(sub, buffer, output_folder, gridInfo):
                 "width": out_image.shape[2],
                 "transform": out_transform
             })
-            base_name = os.path.basename(sub)
-            output_filename = f"{base_name.replace('global.tif', 'tile')}_{idx}.tif"
+            output_filename = f"output_raster_{idx}.tif"
             filename=os.path.join(output_folder,output_filename)
             with rasterio.open(filename, "w", **out_meta) as dest:
                 dest.write(out_image)
+
 
 def crop_raster(input_path, output_path, shapely_polygon):
     """

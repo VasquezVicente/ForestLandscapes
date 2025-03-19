@@ -20,6 +20,20 @@ Vasquez, V., Garcia, M., Hernandez, M., &amp; Muller-Landau, H. (2023). <i><b>Ba
 
 Garcia, M., Vasquez, V.,Muller-Landau, H. (2023). Barro Colorado whole-island aerial photogrammetry products for 2018-2023.(Version 4). Smithsonian Tropical Research Institute. https://doi.org/10.25573/data.24757284
 
+
+## full_workflow
+The full-workflow subdirectory purpose is to provide with a run over coregistration of imagery, transfer of tree crown polygons from one date to another and generate a new crown map to be used in the field for validation
+
+### main.py
+main.py currently contains an example of the full workflow. 
+You will need the following packages:
+    -os
+    -geopandas
+
+
+
+### UAV_photogrametry.py
+
 ## LandscapeScripts
 ### UAV_photogrametry.py
 
@@ -56,6 +70,14 @@ The script crown_segmentation.py contains the complete workflow for segmentation
                 -shapely 2.0.1 py39hd7f5953_0
                 -opencv 4.6.0 py39hf11a4ad_3
                 -pytorch 2.0.0 py3.9_cuda11.7_cudnn8_0
+
+### install and enviroments
+
+Hello, you may be wondering how do I make use of this scripts and what packages do you need. Lets start with the full workflow folder
+
+Step 1: create a Anaconda enviroment, I created mine using python 3.11 and name autocrown. conda create -n autocrown python=3.11
+
+Local coregistration is implemented from Arosics module, the pip install arosics option often causes conflicts with the GDAL from rasterio. So it is better to build with conda forge conda install conda-forge::arosics. 
 
 
 ### References
