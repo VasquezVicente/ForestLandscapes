@@ -39,30 +39,33 @@ path_orthomosaic=r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2025\BCI
 path_cropped= path_orthomosaic.replace('_orthomosaic.tif', '_cropped.tif')
 path_crownmap=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\geodataframes\BCI_50ha_2022_2023_crownmap_raw.shp"
 
-
+#cropping to only include 50ha plot and not the ava and 10ha plot
 crownmap= gpd.read_file(path_crownmap)
 bounds= crownmap.total_bounds
 shapebci= box(bounds[0]-20,bounds[1]-20,bounds[2]+20,bounds[3]+20)
-
 crop_raster(path_orthomosaic,path_cropped,shapebci)
 
+#AI model loading
 MODEL_TYPE = "vit_h"
 checkpoint = r"D:\BCI_50ha\aux_files\sam_vit_h_4b8939.pth"
 device = 'cuda'
 sam = sam_model_registry[MODEL_TYPE](checkpoint=checkpoint)
-sam.to(device=device)  #requires cuda cores
+sam.to(device=device)  #requires cuda cores, add # if you dont have cuda installed or access to a GPU
 mask_predictor = SamPredictor(sam)
 
-from full_workflow.utils import process_crown_data
+#3 functions, process crown data does the last two together with default 100 and 30. or do both individually.
+from full_workflow.utils import process_crown_data, tile_ortho,crown_segment
 
-wd= r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\crownmap2025"
-tile_folder=os.path.join(wd,"tiles")
-os.makedirs(tile_folder)
-reference=gpd.read_file(path_crownmap)
-orthomosaic= path_cropped
-crownmap2025= path_crownmap.replace("BCI_50ha_2022_2023_crownmap_raw.shp","BCI_50ha_2025_crownmap_raw.shp")
+wd= r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\crownmap2025" # working directory
+tile_folder=os.path.join(wd,"tiles") #tiles folder 
+os.makedirs(tile_folder, exist_ok=True) #create tiles folder
+orthomosaic= path_cropped  # path cropped is the same than orthomosaic to be used for segmentation
+crownmap2025= path_crownmap.replace("BCI_50ha_2022_2023_crownmap_raw.shp","BCI_50ha_2025_crownmap_raw.shp") #output path
 
-process_crown_data(wd,tile_folder,reference,orthomosaic,crownmap2025)
+reference=gpd.read_file(path_crownmap) # read the reference crown map
+tile_ortho(orthomosaic,75,20,tile_folder)# tile the orthomosaic to be used for segmentation
+crown_segment(tile_folder,reference,mask_predictor,crownmap2025)
+
 
 
 

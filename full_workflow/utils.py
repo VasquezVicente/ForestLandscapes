@@ -143,7 +143,7 @@ def align_orthomosaics(reference, target, target_out):
     CRL.correct_shifts()
     print("finish align")
 
-def crown_segment(tile_folder,shp,output_shapefile):
+def crown_segment(tile_folder,shp,mask_predictor,output_shapefile):
     all=[]
     tiles= os.listdir(tile_folder)
     for tile in tiles:
@@ -151,6 +151,8 @@ def crown_segment(tile_folder,shp,output_shapefile):
         with rasterio.open(sub) as src:
             data=src.read()
             transposed_data=data.transpose(1,2,0)
+            if transposed_data.dtype == np.uint16:  #mavic data comes a uint16,it needs to be coverted and normalized
+                transposed_data = (transposed_data / 256).astype(np.uint8)  # Normalize and convert
             crs=src.crs
             affine_transform = src.transform 
             bounds=src.bounds
