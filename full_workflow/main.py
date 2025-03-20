@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 from rasterio.mask import mask
 import rasterio
 from shapely import box
-from full_workflow.utils import crop_raster, align_orthomosaics
+from full_workflow.utils import crop_raster
+from segment_anything import SamPredictor
+from segment_anything import sam_model_registry
 
 #hyperparameters
 buffer=20 #20 meters to the shape to avoid issues
@@ -25,13 +27,45 @@ sherman_2025_out=os.path.join(os.path.dirname(sherman_2025),os.path.basename(she
 crop_raster(sherman_2021, sherman_2021_out,sherman_shape)
 crop_raster(sherman_2025, sherman_2025_out,sherman_shape)
 
-
 #align the target to the reference
 sherman_2021_out_align=os.path.join(os.path.dirname(sherman_2021),os.path.basename(sherman_2021_out).replace("_shermansub.tif","_shermanaligned.tif"))
 
 align_orthomosaics(sherman_2025_out,sherman_2021_out,sherman_2021_out_align) # if this fails, the orthomosaic needs to be georeferenced in arcgis pro
 
 #next step is to transfer the labels, for that we need crown segment
+# I will test the 50ha plot first
+
+path_orthomosaic=r"\\stri-sm01\ForestLandscapes\LandscapeProducts\Drone\2025\BCI_50ha_2025_03_10_M3E\Orthophoto\BCI_50ha_2025_03_10_orthomosaic.tif"
+path_cropped= path_orthomosaic.replace('_orthomosaic.tif', '_cropped.tif')
+path_crownmap=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\geodataframes\BCI_50ha_2022_2023_crownmap_raw.shp"
+
+
+crownmap= gpd.read_file(path_crownmap)
+bounds= crownmap.total_bounds
+shapebci= box(bounds[0]-20,bounds[1]-20,bounds[2]+20,bounds[3]+20)
+
+crop_raster(path_orthomosaic,path_cropped,shapebci)
+
+MODEL_TYPE = "vit_h"
+checkpoint = r"D:\BCI_50ha\aux_files\sam_vit_h_4b8939.pth"
+device = 'cuda'
+sam = sam_model_registry[MODEL_TYPE](checkpoint=checkpoint)
+sam.to(device=device)  #requires cuda cores
+mask_predictor = SamPredictor(sam)
+
+from full_workflow.utils import process_crown_data
+
+wd= r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\crownmap2025"
+tile_folder=os.path.join(wd,"tiles")
+os.makedirs(tile_folder)
+reference=gpd.read_file(path_crownmap)
+orthomosaic= path_cropped
+crownmap2025= path_crownmap.replace("BCI_50ha_2022_2023_crownmap_raw.shp","BCI_50ha_2025_crownmap_raw.shp")
+
+process_crown_data(wd,tile_folder,reference,orthomosaic,crownmap2025)
+
+
+
 
 
 
