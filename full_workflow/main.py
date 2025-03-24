@@ -67,6 +67,20 @@ tile_ortho(orthomosaic,75,20,tile_folder)# tile the orthomosaic to be used for s
 crown_segment(tile_folder,reference,mask_predictor,crownmap2025)
 
 
+crownmap2025_gpd= gpd.read_file(r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\geodataframes\BCI_50ha_2025_crownmap_filtered.shp")
+
+crownmap= gpd.read_file(r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\geodataframes\BCI_50ha_2022_2023_crownmap_raw.shp")
+
+crown_merged= crownmap2025_gpd.merge(crownmap[['GlobalID','latin']],left_on='GlobalID', right_on='GlobalID', how='right')
+
+crown_merged.to_file(r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries\geodataframes\BCI_50ha_2025_crownmap_final.shp")
+
+
+
+
+
+
+
 
 
 
