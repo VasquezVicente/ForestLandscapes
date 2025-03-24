@@ -1,25 +1,44 @@
-import labelbox as lb
+import labelbox
 import os
 import pandas as pd
 
-client = lb.Client(api_key="")
+client = labelbox.Client(api_key="")
 dataset = client.get_dataset("cm8bs9pgf00d40746btooascw")
+
+export_task = dataset.export()
+export_task.wait_till_done()
+
+def json_stream_handler(output: labelbox.BufferedJsonConverterOutput):
+  print(output.json)
+
+stream=export_task.get_buffered_stream(stream_type=labelbox.StreamType.RESULT).start(stream_handler=json_stream_handler)
+
+export_json = [data_row.json for data_row in export_task.get_buffered_stream()]
+
+global_keys = [item["data_row"]["external_id"] for item in export_json]
 
 data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
 path_out= os.path.join(data_path,'flower_dataset')
+list_flower = [os.path.join(path_out, filename) for filename in os.listdir(path_out)]
 
-flowering_metadata=pd.read_csv(r'timeseries\dataset_corrections\check_flower1.csv')
-flowering_metadata.columns
+extra_files = [f for f in list_flower if f not in global_keys]
+extra_file_ids = [os.path.basename(f) for f in extra_files]
+
+flowering_metadata=pd.read_csv(r'timeseries\dataset_corrections\flower2.csv')
+flowering_metadata['polygon_id']=flowering_metadata['polygon_id']+".png"
+extra_metadata_rows = flowering_metadata[flowering_metadata['polygon_id'].isin(extra_file_ids)]
+extra_metadata_rows = extra_metadata_rows.drop_duplicates(subset='polygon_id', keep=False)
+
 
 assets=[]
-for index, row in flowering_metadata.iterrows():
+for index, row in extra_metadata_rows.iterrows():
     row_data_path = os.path.join(
         "\\\\stri-sm01\\ForestLandscapes\\UAVSHARE\\BCI_50ha_timeseries\\flower_dataset",
-        f"{row['polygon_id']}.png"
+        f"{row['polygon_id']}"
     )
     dict_row = {
         'row_data': row_data_path,
-        'global_key': row['globalId'],
+        'global_key': row['polygon_id'],
         'media_type': 'IMAGE',
         'metadata_fields': [
             {"schema_id": "cm8bxtvk600q1074v0ad2cds7", "value": str(row['latin'])},
@@ -31,7 +50,6 @@ for index, row in flowering_metadata.iterrows():
     }
     assets.append(dict_row)
 
-
 try:
     task = dataset.create_data_rows(assets)
     task.wait_till_done()
@@ -40,78 +58,55 @@ except Exception as err:
     task.errors
 
 
-#export the data
-export_task = lb.ExportTask.get_task(client, "cm8cf844z0a5f075b4aqt3t31")
 
-# Stream the export using a callback function
-import ndjson
-import json
+#bring back the exports after labelling
+project = client.get_project("cm8azfo2f037h074jgzid05f9")
+export_task = project.export()
+export_task.wait_till_done()
 
-classification_names = [
-    'floweringIntensity', 'flowering_liana', 'isFlowering',
-    'isFruiting', 'fruitingIntensity', 'segmentation',
-    'newLeaves', 'leafing'
-]
-import pandas as pd
-# Initialize list to store data rows
-data_rows = []
+stream=export_task.get_buffered_stream(stream_type=labelbox.StreamType.RESULT).start(stream_handler=json_stream_handler)
 
-# Open and process the NDJSON file
-with open(r'timeseries\dataset_corrections\flowering_2025_03_16.ndjson') as f:
-    for line in f:
-        data = json.loads(line)
-        data_row = data.get('data_row', {})
-        global_key = data_row.get('global_key', 'N/A')
+export_json = [data_row.json for data_row in export_task.get_buffered_stream()]
 
-        metadata_fields = data.get('metadata_fields', [])
-        date = 'N/A'
-        for field in metadata_fields:
-            if field.get('schema_name') == 'date_str':
-                date = field.get('value')
-                break
+global_keys = [item["data_row"]["external_id"] for item in export_json]
 
-        # Initialize classification values
-        classifications = {name: 'N/A' for name in classification_names}
 
-        projects = data.get('projects', {})
-        for project_details in projects.values():
-            labels = project_details.get('labels', [])
-            for label in labels:
-                annotations = label.get('annotations', {})
-                for classification in annotations.get('classifications', []):
-                    name = classification.get('name')
-                    if name in classification_names:
-                        if 'text_answer' in classification:
-                            content = classification['text_answer'].get('content')
-                        elif 'radio_answer' in classification:
-                            content = classification['radio_answer'].get('value')
-                        elif 'checklist_answers' in classification:
-                            content = [item.get('value') for item in classification['checklist_answers']]
-                        else:
-                            content = None
-                        classifications[name] = content
-        
-        # Append row to the list
-        data_row_dict = {'global_key': global_key, 'date': date}
-        data_row_dict.update(classifications)
-        data_rows.append(data_row_dict)
 
-# Create a pandas DataFrame
-import numpy as np
-df = pd.DataFrame(data_rows)
+data = [] 
+for row in export_json:
+    polygon_id = row["data_row"]["external_id"]  # Extract polygon ID
+    row_data = {"polygon_id": polygon_id}
+    for project_id, project_data in row['projects'].items():  # every project is a columns
+        for label in project_data['labels']:  # Access labels
+            classifications = label['annotations']['classifications']
+            
+            for classification in classifications:
+                if classification['name'] == 'newLeaves':  # Look for "newLeaves"
+                    row_data['newLeaves']= classification['radio_answer']['value']
+                elif classification['name'] == 'isFlowering':
+                    row_data['isFlowering']= classification['radio_answer']['value']
+                elif classification['name'] == 'isFruiting':
+                    row_data['isFruiting']= classification['radio_answer']['value']
+                elif classification['name']== 'segmentation':
+                    row_data['segmentation']=classification['radio_answer']['value']
+                elif classification['name'] == 'leafing':  # Fixed condition
+                    row_data['leafing'] = float(classification['text_answer']['content'])# Fixed access
+                elif classification['name']== 'floweringIntensity':
+                    row_data['floweringIntensity']=float(classification['text_answer']['content'])
+                elif classification['name'] == 'flowering_liana':
+                    row_data['flowering_liana'] = [answer['name'] for answer in classification['checklist_answers']][0]
+    data.append(row_data)
+     
+flowering_dataset= pd.DataFrame(data)
+flowering_dataset['polygon_id'] = flowering_dataset['polygon_id'].apply(os.path.basename)
+flowering_dataset['polygon_id'] = flowering_dataset['polygon_id'].apply(lambda x: x.split(".")[0])
 
-df= df.rename(columns={'global_key':'globalId'})
+flowering_dataset=flowering_dataset[~flowering_dataset['leafing'].isna()]
+flowering_dataset['isFlowering']= flowering_dataset.apply(lambda x: if x.is notna()  then x if na and floweringIntesity >0 then yes)
 
-df['floweringIntensity'] = pd.to_numeric(df['floweringIntensity'], errors='coerce')
+flowering_dataset['isFlowering'] = flowering_dataset.apply(
+    lambda x: x['isFlowering'] if pd.notna(x['isFlowering']) else ('yes' if x['floweringIntensity'] > 0 else 'no'),
+    axis=1
+)
 
-# Convert 'leafing' to numeric, setting errors='coerce' to handle 'N/A' as NaN
-df['leafing'] = pd.to_numeric(df['leafing'], errors='coerce')
-
-# Convert 'isFlowering', 'isFruiting', 'segmentation', and 'newLeaves' to string, replacing 'N/A' with NaN
-df['isFlowering'] = df['isFlowering'].replace('N/A', pd.NA).astype('string')
-df['isFruiting'] = df['isFruiting'].replace('N/A', pd.NA).astype('string')
-df['segmentation'] = df['segmentation'].replace('N/A', pd.NA).astype('string')
-df['newLeaves'] = df['newLeaves'].replace('N/A', pd.NA).astype('string')
-
-df= df[df['isFlowering'].notna()]
-df.to_csv(r'timeseries/dataset_corrections/flower1.csv')
+flowering_dataset.to_csv('timeseries/dataset_corrections/flower_1.csv')

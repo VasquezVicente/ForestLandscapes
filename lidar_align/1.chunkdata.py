@@ -1,64 +1,99 @@
-import laspy
-import os
+import argparse
+import sys
+from pathlib import Path
+from typing import List, Optional
+
 import numpy as np
-import pandas as pd
-import geopandas as gpd
-from shapely.geometry import Polygon
 
-file=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCNM Lidar Raw Data\TLS\panama_BCI_plot2 0.010 m.las"
-file_out=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCNM Lidar Raw Data\TLS\tiles"
+import laspy
 
-xmin, xmax, ymin, ymax=-296.7343, 386.7407, -426.6668, 536.1783
 
-def create_grid(xmin, xmax, ymin, ymax, tile_size, buffer=0):
-    if tile_size <= 0:
-        raise ValueError("tile_size must be greater than zero.")
-    
-    x_range = xmax - xmin
-    y_range = ymax - ymin
-    x_tiles = int(np.ceil(x_range / tile_size))
-    y_tiles = int(np.ceil(y_range / tile_size))
+def recursive_split(x_min, y_min, x_max, y_max, max_x_size, max_y_size):
+    x_size = x_max - x_min
+    y_size = y_max - y_min
 
-    x_residual = x_range % tile_size
-    y_residual = y_range % tile_size
+    if x_size > max_x_size:
+        left = recursive_split(
+            x_min, y_min, x_min + (x_size // 2), y_max, max_x_size, max_y_size
+        )
+        right = recursive_split(
+            x_min + (x_size // 2), y_min, x_max, y_max, max_x_size, max_y_size
+        )
+        return left + right
+    elif y_size > max_y_size:
+        up = recursive_split(
+            x_min, y_min, x_max, y_min + (y_size // 2), max_x_size, max_y_size
+        )
+        down = recursive_split(
+            x_min, y_min + (y_size // 2), x_max, y_max, max_x_size, max_y_size
+        )
+        return up + down
+    else:
+        return [(x_min, y_min, x_max, y_max)]
 
-    tile_size_x = tile_size + x_residual / x_tiles if x_residual > 0 else tile_size
-    tile_size_y = tile_size + y_residual / y_tiles if y_residual > 0 else tile_size
 
-    if x_residual > 0 or y_residual > 0:
-        print(f"Warning: Adjusted tile size used for residual coverage - X: {tile_size_x}, Y: {tile_size_y}")
+def tuple_size(string):
+    try:
+        return tuple(map(float, string.split("x")))
+    except:
+        raise ValueError("Size must be in the form of numberxnumber eg: 50.0x65.14")
 
-    xmins = np.arange(xmin, xmax, tile_size_x)
-    ymins = np.arange(ymin, ymax, tile_size_y)
-    
-    polygons = []
-    for x in xmins:
-        for y in ymins:
-            poly = Polygon([
-                (x - buffer, y - buffer), 
-                (x + tile_size_x + buffer, y - buffer), 
-                (x + tile_size_x + buffer, y + tile_size_y + buffer), 
-                (x - buffer, y + tile_size_y + buffer)
-            ])
-            polygons.append(poly)
 
-    # Create a GeoDataFrame
-    grid_gdf = gpd.GeoDataFrame(geometry=polygons, crs="EPSG:4326")  # Change CRS if needed
+def main():
+    parser = argparse.ArgumentParser(
+        "LAS recursive splitter", description="Splits a las file bounds recursively"
+    )
+    parser.add_argument("input_file")
+    parser.add_argument("output_dir")
+    parser.add_argument("size", type=tuple_size, help="eg: 50x64.17")
+    parser.add_argument("--points-per-iter", default=10**6, type=int)
 
-    return grid_gdf
-newgrid=create_grid(xmin, xmax, ymin, ymax, tile_size=100,buffer=0)
+    args = parser.parse_args()
 
-with laspy.open(file) as f:
-    for i, row in newgrid.iterrows():
-        subplot=[]
-        for idx, points in enumerate(f.chunk_iterator(1000000), start=1):
-            filter points falling inside the polygon
-            move then into subplot
-            subplot.append
-        
-        with laspy.open("grounds.laz", mode="w", header=f.header) as writer:
-            for points in f.chunk_iterator(1_234_567):
-                writer.write_points(points[points.classification == 2]
+    with laspy.open(sys.argv[1]) as file:
+        sub_bounds = recursive_split(
+            file.header.x_min,
+            file.header.y_min,
+            file.header.x_max,
+            file.header.y_max,
+            args.size[0],
+            args.size[1],
+        )
 
-       
+        writers: List[Optional[laspy.LasWriter]] = [None] * len(sub_bounds)
+        try:
+            count = 0
+            for points in file.chunk_iterator(args.points_per_iter):
+                print(f"{count / file.header.point_count * 100}%")
 
+                # For performance we need to use copy
+                # so that the underlying arrays are contiguous
+                x, y = points.x.copy(), points.y.copy()
+
+                point_piped = 0
+
+                for i, (x_min, y_min, x_max, y_max) in enumerate(sub_bounds):
+                    mask = (x >= x_min) & (x <= x_max) & (y >= y_min) & (y <= y_max)
+
+                    if np.any(mask):
+                        if writers[i] is None:
+                            output_path = Path(sys.argv[2]) / f"output_{i}.laz"
+                            writers[i] = laspy.open(
+                                output_path, mode="w", header=file.header
+                            )
+                        sub_points = points[mask]
+                        writers[i].write_points(sub_points)
+
+                    point_piped += np.sum(mask)
+                    if point_piped == len(points):
+                        break
+                count += len(points)
+            print(f"{count / file.header.point_count * 100}%")
+        finally:
+            for writer in writers:
+                if writer is not None:
+                    writer.close()
+
+
+if __name__ == "__main__":
+    main()

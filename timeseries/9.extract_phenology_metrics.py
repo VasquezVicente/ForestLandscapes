@@ -1,43 +1,88 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import UnivariateSpline
+import pandas as pd
+import pickle
+import ruptures as rpt
 
-x_data = np.array([0,30,60,90,120,150,180,210,240,270,300,330])
-y_data = np.array([99, 100, 100, 75, 50, 0, 0, 0, 50, 75, 99, 98])
+data= pd.read_csv(r"timeseries/dataset_predictions/dipteryx_sgbt.csv")
 
-# Calculate the first derivative (slope) between consecutive points
-slope = np.diff(y_data) / np.diff(x_data)
 
-sof_index = None
-eof_index = None
-for i in range(1, len(slope)):
-    # Transition from non-negative slope to negative slope (SOF)
-    if sof_index is None and slope[i-1] >= 0 and slope[i] < 0:
-        sof_index = i
-    # Transition from negative slope to non-negative slope (EOF)
-    if sof_index is not None and slope[i-1] < 0 and slope[i] >= 0:
-        eof_index = i
-        break  # Once EOF is found, break the loop
+with open(r'timeseries/models/xgb_model.pkl', 'rb') as file:
+      model = pickle.load(file)
 
-# Get the corresponding x values for SOF and EOF
-sof = x_data[sof_index]
-eof = x_data[eof_index] if eof_index is not None else None  # EOF might not be found if the fall doesn't end
+X=data[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'shadowM','rSD', 'gSD', 'bSD',
+       'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD','entropy','elevSD']]
 
-# Print the results
-print(f"SOF (Start of Fall): {sof} months")
-if eof is not None:
-    print(f"EOF (End of Fall): {eof} months")
-else:
-    print("EOF (End of Fall) not detected.")
+Y= data[['area', 'score', 'tag', 'GlobalID', 'iou',
+       'date', 'latin', 'polygon_id']]
+X_predicted=model.predict(X)
+df_final = Y.copy()  # Copy Y to keep the same structure
+df_final['leafing_predicted'] = X_predicted
 
-# Plot the data and highlight SOF and EOF points
-plt.plot(x_data, y_data, label='Observed Data')
-plt.scatter(sof, y_data[sof_index], color='red', label=f'SOF: {sof} months')
-if eof is not None:
-    plt.scatter(eof, y_data[eof_index], color='blue', label=f'EOF: {eof} months')
-plt.xlabel('Time (months)')
-plt.ylabel('Leaf Coverage')
-plt.title('Leaf Coverage, SOF, and EOF Detection')
-plt.legend()
+df_final['date'] = pd.to_datetime(df_final['date'], format='%Y_%m_%d')
+df_final['dayYear'] = df_final['date'].dt.dayofyear
+df_final['year']= df_final['date'].dt.year
+df_final['date_num']= (df_final['date'] -df_final['date'].min()).dt.days
+
+individuals=pd.unique(df_final['GlobalID'])
+indv= df_final[df_final['GlobalID']==individuals[18]]
+
+indv=indv[['leafing_predicted', 'dayYear','year','date_num','date']]
+
+indv = indv.sort_values(by='date_num')
+full_date_range = pd.date_range(start=indv['date'].min(), end=indv['date'].max(), freq='D')
+full_df = pd.DataFrame({'date': full_date_range})
+full_df['dayYear'] = full_df['date'].dt.dayofyear  # Assuming 'date_num' corresponds to day of year
+full_df['date_num']= (full_df['date']- full_df['date'].min()).dt.days
+full_df['year'] = full_df['date'].dt.year  # Extract year if needed
+
+# Merge the full_df with the original dataframe to identify missing dates
+indv = pd.merge(full_df, indv, on=['date', 'date_num', 'year','dayYear'], how='left')
+indv['leafing_predicted'] = indv['leafing_predicted'].interpolate(method='linear')
+
+
+plt.figure(figsize=(12, 6))
+plt.scatter(indv['dayYear'], indv['leafing_predicted'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
+plt.xlabel('Day of year')
+plt.ylabel('Leafing Predicted')
 plt.grid(True)
+plt.title('Leafing Predicted vs Day of Year')
+plt.legend()
+plt.colorbar(label='Year')
+plt.show()
+
+
+
+# Extract the signal
+signal = indv['leafing_predicted'].values  # Get the leafing predictions
+
+# Apply rupture's dynamic programming method
+algo = rpt.Dynp(model="l2").fit(signal)
+
+# Predict the change points
+n_bkps = 11  # Number of change points to detect
+result = algo.predict(n_bkps=n_bkps)
+
+# Show the change points
+print("Change points detected at indices:", result)
+
+rpt.display(signal, result)
+plt.show()
+
+# Plot the leafing predictions
+plt.figure(figsize=(12, 6))
+plt.scatter(indv['date_num'], indv['leafing_predicted'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
+plt.xlabel('Day of year')
+plt.ylabel('Leafing Predicted')
+plt.grid(True)
+plt.title('Leafing Predicted vs Day of Year')
+plt.legend()
+plt.colorbar(label='Year')
+
+# Add the detected breakpoints as dashed vertical lines
+for bp in result:
+    plt.axvline(x=bp, color='red', linestyle='--', linewidth=2)
+
+# Show the plot
 plt.show()
