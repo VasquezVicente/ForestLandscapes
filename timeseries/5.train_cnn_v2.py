@@ -19,7 +19,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #Parameters
 num_epochs=6
-batch_size=4
+batch_size=6
 learning_rate= 0.0001
 
 #define transform
@@ -68,9 +68,9 @@ class CNNRegressor(nn.Module):
         self.conv3 = nn.Conv2d(128, 256, kernel_size=3, padding=1)  
         self.conv4 = nn.Conv2d(256, 512, kernel_size=3, padding=1) 
 
-        self.fc1 = nn.Linear(512 * 14 * 14, 4096) 
-        self.fc2 = nn.Linear(4096, 1024) 
-        self.fc3 = nn.Linear(1024, 1) 
+        self.fc1 = nn.Linear(512 * 14 * 14, 1024) 
+        self.fc2 = nn.Linear(1024, 256) 
+        self.fc3 = nn.Linear(256, 1) 
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))

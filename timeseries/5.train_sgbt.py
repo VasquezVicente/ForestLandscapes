@@ -37,7 +37,7 @@ y=training_dataset[['leafing']]
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
 
 model = XGBRegressor(
-    n_estimators=4000,
+    n_estimators=5000,
     max_depth=20, 
     learning_rate=0.001, 
     subsample=0.8,  
@@ -69,3 +69,19 @@ plt.show()
 
 with open(r'timeseries/models/xgb_model.pkl', 'wb') as file:
     pickle.dump(model, file)
+
+
+
+training_dataset.loc[y_test.index, 'leafing_predicted'] = y_pred
+training_dataset=training_dataset[~training_dataset['leafing_predicted'].isna()]
+training_dataset['bias']= training_dataset['leafing_predicted']-training_dataset['leafing']
+dataset_bias= training_dataset[training_dataset['bias']>abs(5)]
+dataset_bias=dataset_bias.sort_values('bias')
+print(dataset_bias)
+dataset_bias.to_csv(r'timeseries/dataset_results/bias_sgbt.csv')
+
+from timeseries.utils import generate_leafing_pdf
+data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
+ortho=os.path.join(data_path,'orthomosaic_aligned_local')
+
+generate_leafing_pdf(dataset_bias,r'plots/check1.pdf',orthomosaic_path=ortho, crowns_per_page= 12, variables=['leafing_predicted','leafing'])

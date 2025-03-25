@@ -12,13 +12,22 @@ crowns=gpd.read_file(path_crowns)
 crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
 
 #load the cnn dataset
-cnn_run2= pd.read_csv(r"timeseries/dataset_results/cnn_run2.csv")
-cnn_predicted= crowns.merge(cnn_run2,left_on='polygon_id', right_on='polygon_id', how='left')
+cnn_run3= pd.read_csv(r"timeseries/dataset_results/cnn_run2.csv")
+cnn_predicted= crowns.merge(cnn_run3,left_on='polygon_id', right_on='polygon_id', how='left')
 
 #filter the non predicted crowns
 cnn_predicted=cnn_predicted[cnn_predicted['leafing_predicted'].notna()]
+cnn_predicted['leafing_predicted'] = cnn_predicted['leafing_predicted'].apply(lambda x: 100 if x > 100 else x)
+cnn_predicted['leafing_predicted'] = cnn_predicted['leafing_predicted'].apply(lambda x: 0 if x < 0 else x)
+
+cnn_predicted['bias']= cnn_predicted['leafing_predicted']-cnn_predicted['leafing']
+cnn_predicted= cnn_predicted[abs(cnn_predicted['bias']) >20]
 generate_leafing_pdf(cnn_predicted,r"plots/leafing_cnn2.pdf" ,path_ortho,crowns_per_page=12, variables=['leafing_predicted','leafing'])
 
+dataset_bias=pd.read_csv(r'timeseries/dataset_results/bias_sgbt.csv')
+crowns_sgbt=crowns.merge(dataset_bias[['polygon_id', 'leafing_predicted','leafing']], left_on='polygon_id', right_on='polygon_id',how='left')
+crowns_sgbt=crowns_sgbt[~crowns_sgbt['leafing_predicted'].isna()]
+generate_leafing_pdf(crowns_sgbt,r'plots/check1.pdf',orthomosaic_path=path_ortho, crowns_per_page= 12, variables=['leafing_predicted','leafing'])
 
 
 ####visualization of last run of labels 2055
