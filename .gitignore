@@ -27,6 +27,7 @@ LandscapeScripts/metadata.py
 *.pdf
 *.pkl
 *.pth
+*.png
 *.ndjson
 *.cpg
 *.csv

@@ -82,6 +82,8 @@ flower_csv= flower_csv[['isFlowering', 'leafing', 'floweringIntensity',
 flower_csv.to_csv(r'timeseries/dataset_corrections/flower2.csv')
 
 
+
+####IMPORTANT RETAKE FROM HERE
 labels_not_flower= crowns_labeled[crowns_labeled["isFlowering"]=='no']
 
 #read the corrected flower dataset
@@ -89,7 +91,20 @@ flower_correction=pd.read_csv(r'timeseries/dataset_corrections/flower_1.csv')
 check0=pd.read_csv(r"timeseries/dataset_corrections/check_0.csv")
 check_01=pd.read_csv(r"timeseries/dataset_corrections/check_01.csv")
 
+##CREATE A DATASET FOR THE FLOWERING CLASSIFIER
+#extract all flowering labels from dipteryx and jacaranda
 
+flower_dataset= crowns.merge(flower_correction, left_on='polygon_id',right_on='polygon_id', how='left')
+flower_dataset= flower_dataset[(flower_dataset['latin']=='Dipteryx oleifera')|(flower_dataset['latin']=="Jacaranda copaia")]
+
+# i need the same amount of fully leafed trees and decidous trees
+fully_leafed_trees= labels_not_flower[labels_not_flower['leafing']==100]
+
+decidous_trees= labels_not_flower
+
+
+
+#####
 crowns_final=pd.concat([labels_not_flower,flower_correction,check0,check0,check0,check_01,check_01,check_01]) #saturate the dataset to make the lcustum leafing trigger its conditions
 
 
