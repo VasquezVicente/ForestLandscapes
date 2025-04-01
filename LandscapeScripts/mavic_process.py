@@ -22,21 +22,20 @@ ppk_avaliable= input("Is PPK data available? (True/False): ")
 missions= os.listdir(r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\{}".format(year))
 for i in range(len(missions)):
     print(f'{i+1}. {missions[i]}')
-    
+print(ppk_avaliable)
 dir_input = input("Enter the mission numbers to be processed (comma-separated): ")
 mission_numbers = dir_input.split(',')
 
 for mission_number in mission_numbers:
     mission_number = mission_number.strip()  # Remove any leading/trailing whitespace
-
     images_dir = r"\\stri-sm01\ForestLandscapes\LandscapeRaw\Drone\{}\{}".format(year, missions[int(mission_number) - 1])
     print(f'Processing {images_dir}')
     mission=missions[int(mission_number)-1]
     path = os.path.dirname(images_dir)
     folders = [folder for folder in os.listdir(images_dir) if folder.startswith('DJI') and os.path.isdir(os.path.join(images_dir, folder))]
 
-    if ppk_avaliable==True:   
-        #metashape original images
+    if ppk_avaliable=='True':   
+        print('printed true')
         mission= "_".join(mission.split('_')[0:4])
         dest=os.path.join(images_dir.replace('Raw','Products'),"Project",mission+"_medium.psx") #proyecto de metashape en la carpeta de productos
         dest2=os.path.join(images_dir.replace('Raw','Products'),"Project")
@@ -44,8 +43,6 @@ for mission_number in mission_numbers:
 
         doc = Metashape.Document()
         chunk= doc.addChunk()
-
-        #add photos to the chunk
         all_combined = []
         for flights in folders[0:len(folders)]:
             print(f'Processing {flights}')
@@ -55,8 +52,6 @@ for mission_number in mission_numbers:
 
         chunk.addPhotos(all_combined, filegroups=[5]*(int(len(all_combined)/5)), layout=Metashape.MultiplaneLayout)
         chunk.exportReference(os.path.join(images_dir,"Georeference", 'original_reference.txt'),delimiter=',')
-
-
         #temporal project for the ppk correction, corregir para posible cambio de nombre
         doc2 = Metashape.Document()
         chunk2= doc2.addChunk()
@@ -68,8 +63,6 @@ for mission_number in mission_numbers:
             images_ppk.extend([os.path.join(photos_dir, photo) for photo in photos_rgb_nth])
         chunk2.addPhotos(images_ppk)
         chunk2.exportReference(os.path.join(images_dir,"Georeference",'ppk_reference.txt'),delimiter=',')
-
-
 
         # Read in both comma delimited files
         ppk_reference = pd.read_csv(os.path.join(images_dir,"Georeference","ppk_reference.txt"), delimiter=',', skiprows=1)
@@ -87,8 +80,6 @@ for mission_number in mission_numbers:
             'Yaw_error', 'Pitch_error', 'Roll_error', 'X_est', 'Y_est', 'Z_est',
             'Yaw_est', 'Pitch_est', 'Roll_est']]
         merged_df.to_csv(os.path.join(images_dir,"Georeference","merged_reference.txt"), index=False)
-
-
         #BACK TO PROCESSING
         #open document
         #delete the original file 
