@@ -1,13 +1,117 @@
 library(pacman)
-# install.packages("devtools")
+library(lidR)
+p_load(lidR, mapview,sf, RCSF, reticulate,remotes,lidUrb,ForestClassR,TreeLS,ITSMe)
 devtools::install_github("lmterryn/ITSMe", build_vignettes = TRUE)
-p_load(lidR, mapview,sp, sf, RCSF, reticulate,remotes,lidUrb,ForestClassR,TreeLS,ITSMe)
-
 use_virtualenv("lidUrb", required = TRUE)
 setup_env()
-
 remotes::install_github('tiagodc/TreeLS')
 library(TreeLS)
+hgd()
+
+
+ctg1<- readLAScatalog("//stri-sm01/ForestLandscapes/UAVSHARE/BCNM Lidar Raw Data/ALS")
+plot(ctg1)
+plot(plots_sf$geometry, col = NA, border = "red",lwd=10, main = "Plot Polygons", add=TRUE)
+out_tiles="//stri-sm01/ForestLandscapes/UAVSHARE/BCNM Lidar Raw Data/ALS/roi"
+dir.create(out_tiles)
+opt_output_files(ctg1) <- paste0(out_tiles, "/retile_{XLEFT}_{YBOTTOM}")
+opt_chunk_buffer(ctg1) <- 30
+roi20x20 <- clip_roi(ctg1,plots_sf)
+
+plot1<- readLAS(roi20x20@data$filename[1])
+plot(plot1)
+ 
+
+#define the 3 TLS plots
+#PLOT 2 coordinates at 870,270, transform shp to be at local coordinates for space reasons
+plots<-read.csv('lidar_align/plot_data.csv')
+shp_file <- "//stri-sm01/ForestLandscapes/UAVSHARE/BCNM Lidar Raw Data/TLS/shp/bci_20x20.shp"
+shp_data <- st_read(shp_file)
+
+plot(st_geometry(shp_data), main = "BCNM Lidar Raw Data - 20x20 Plots")
+
+plots$xutm<-625773.86 + sqrt(plots$xcenter^2 + plots$ycenter^2) * cos (atan(plots$ycenter/plots$xcenter)-0.03246)
+plots$yutm<- 1011775.84 + sqrt(plots$xcenter^2 + plots$ycenter^2) * sin (atan(plots$ycenter/plots$xcenter)-0.03246)
+
+create_plot_polygon <- function(x_center, y_center, size = 100, angle = -0.03246) {
+  half_size <- size / 2
+  corners <- matrix(c(
+    -half_size, -half_size,
+    half_size, -half_size,
+    half_size,  half_size,
+    -half_size,  half_size,
+    -half_size, -half_size
+  ), ncol = 2, byrow = TRUE)
+  rotation_matrix <- matrix(c(
+    cos(angle), -sin(angle),
+    sin(angle),  cos(angle)
+  ), ncol = 2, byrow = TRUE)
+  rotated_corners <- t(rotation_matrix %*% t(corners))
+  rotated_corners[,1] <- rotated_corners[,1] + x_center
+  rotated_corners[,2] <- rotated_corners[,2] + y_center
+  st_polygon(list(rotated_corners))
+}
+plot_polygons <- st_sfc(lapply(1:nrow(plots), function(i) {
+  create_plot_polygon(plots$xutm[i], plots$yutm[i])
+}), crs = 32617)
+
+plots_sf <- st_sf(plots, geometry = plot_polygons)
+plot(plots_sf$geometry, col = NA, border = "red",lwd=10, main = "Plot Polygons", add=TRUE)
+
+ 
+plot_local_1<- create_plot_polygon(50,50)
+plot_local_2<- create_plot_polygon(0,0)
+plot_local_3<- create_plot_polygon(50,50)
+
+
+shp_data_transformed <- shp_data
+shp_data_transformed<- st_geometry(shp_data) - c(plots[plots$plot=="Plot 3",'xutm'] - 50, plots[plots$plot=="Plot 3",'yutm'] - 50)
+theta <- 0.03246
+R <- matrix(c(cos(theta), -sin(theta), sin(theta), cos(theta)), 2, 2)
+st_geometry(shp_data_transformed) * R -> rotated_geometry
+plot(rotated_geometry, border = "red", col = NA, main = "Rotated Shapefile")
+st_geometry(plot_local_1) * R -> rotated_plot1
+filtered_shp <- rotated_geometry[st_intersects(rotated_geometry, rotated_plot1, sparse = FALSE), ] 
+indexes_to_remove <- c(19, 1, 7, 25, 31, 8, 10, 12, 14, 16, 18)
+filtered_shp <- filtered_shp[-indexes_to_remove, ]
+
+##lets called ctg_1
+ctg1<- readLAScatalog("//stri-sm01/ForestLandscapes/UAVSHARE/BCNM Lidar Raw Data/TLS/plot1")
+plot(ctg1)
+plot(filtered_shp , border = "red", col = NA, main = "Rotated Shapefile", add=TRUE)
+data <- data.frame(id = seq_len(length(filtered_shp)))
+filtered_shp <- st_sf(data, geometry = st_geometry(filtered_shp))
+#text(st_coordinates(st_centroid(filtered_shp)), labels = seq_len(length(filtered_shp)), col = "blue", cex = 0.8)
+
+##decimate, it is too complicated to handle with R 
+out_tiles="//stri-sm01/ForestLandscapes/UAVSHARE/BCNM Lidar Raw Data/TLS/plot1/decimated"
+dir.create(out_tiles)
+opt_output_files(ctg1) <- paste0(out_tiles, "/retile_{XLEFT}_{YBOTTOM}")
+opt_chunk_buffer(ctg1) <- 15
+opt_chunk_size(ctg1) <- 30
+plot(ctg1, chunk=TRUE)
+newctg<-decimate_points(ctg1, random(25000))
+
+
+
+
+
+
+
+newctg = catalog_retile(ctg)
+
+las_data <- readLAS(ctg3@data$filename[1])
+
+#rotate the point cloud theta <- atan(plots$ycenter / plots$xcenter) - 0.03246
+theta <- atan(50 / 50) - 0.03246
+
+ctg3@data$X_rot <- ctg3@data$X
+
+las_data@data$X_rot <- las_data@data$X * cos(theta) - las_data@data$Y * sin(theta)
+las_data@data$Y_rot <- las_data@data$X * sin(theta) + las_data@data$Y * cos(theta)
+
+
+
 
 ctg <- readLAScatalog("D:/TLS/tiles")
 las_check(ctg)
@@ -42,20 +146,6 @@ opt_filter(no_noise) <- "-drop_class 18"
 plot(no_noise)
 
 
-#define the ROI
-#PLOT 2 coordinates at 870,270, transform shp to be at local coordinates for space reasons
-x=650
-y=450
-x_utm = 625773.86 + sqrt(x^2 + y^2) * cos (atan(y/x)-0.03246)
-y_utm = 1011775.84 + sqrt(x^2 + y^2) * sin (atan(y/x)-0.03246)
-
-shp_file <- "//stri-sm01/ForestLandscapes/UAVSHARE/BCNM Lidar Raw Data/TLS/shp/bci_20x20.shp"
-shp_data <- st_read(shp_file)
-shp_data_transformed <- shp_data
-shp_data_transformed$geometry <- st_geometry(shp_data) - c(x_utm - 50, y_utm - 50)
-
-plot(st_geometry(shp_data_transformed), border = "blue", col = NA, main = "Transformed Shapefile", add=TRUE)
-points(50, 50, col = "red", pch = 19, cex = 2)  
 
 ##100X100 PLOT WITH 5METER BUFFER
 e <- st_as_sf(as(raster::extent(0, 100, 0, 100), "SpatialPolygons"))
