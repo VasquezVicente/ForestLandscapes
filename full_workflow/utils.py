@@ -3,8 +3,8 @@ import shutil
 import rasterio
 import numpy as np
 import  cv2
-from osgeo import gdal
-import arosics
+#from osgeo import gdal
+#import arosics
 import geopandas as gpd
 from shapely.geometry import box as box1
 import pandas as pd
