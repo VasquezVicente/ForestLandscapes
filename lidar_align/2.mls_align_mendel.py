@@ -5,83 +5,6 @@ import copy
 import os
 import re
 
-target_positions = {
-    "3020": np.array([
-        [0, 0, 0], [0, 20, 0], [20, 0, 0], [20, 20, 0]
-    ]),
-    "3021": np.array([
-        [0, 20, 0], [0, 40, 0], [20, 20, 0], [20, 40, 0]
-    ]),
-    "3022": np.array([
-        [0, 40, 0], [0, 60, 0], [20, 40, 0], [20, 60, 0]
-    ]),
-    "3023": np.array([
-        [0, 60, 0], [0, 80, 0], [20, 60, 0], [20, 80, 0]
-    ]),
-    "3024": np.array([
-        [0, 80, 0], [0, 100, 0], [20, 80, 0], [20, 100, 0]
-    ]),
-    "3120": np.array([
-        [20, 0, 0], [20, 20, 0], [40, 0, 0], [40, 20, 0]
-    ]),
-    "3121": np.array([
-        [20, 20, 0], [20, 40, 0], [40, 20, 0], [40, 40, 0]
-    ]),
-    "3122": np.array([
-        [20, 40, 0], [20, 60, 0], [40, 40, 0], [40, 60, 0]
-    ]),
-    "3123": np.array([
-        [20, 60, 0], [20, 80, 0], [40, 60, 0], [40, 80, 0]
-    ]),
-    "3124": np.array([
-        [20, 80, 0], [20, 100, 0], [40, 80, 0], [40, 100, 0]
-    ]),
-    "3220": np.array([
-        [40, 0, 0], [40, 20, 0], [60, 0, 0], [60, 20, 0]
-    ]),
-    "3221": np.array([
-        [40, 20, 0], [40, 40, 0], [60, 20, 0], [60, 40, 0]
-    ]),
-    "3222": np.array([
-        [40, 40, 0], [40, 60, 0], [60, 40, 0], [60, 60, 0]
-    ]),
-    "3223": np.array([
-        [40, 60, 0], [40, 80, 0], [60, 60, 0], [60, 80, 0]
-    ]),
-    "3224": np.array([
-        [40, 80, 0], [40, 100, 0], [60, 80, 0], [60, 100, 0]
-    ]),
-    "3320": np.array([
-        [60, 0, 0], [60, 20, 0], [80, 0, 0], [80, 20, 0]
-    ]),
-    "3321": np.array([
-        [60, 20, 0], [60, 40, 0], [80, 20, 0], [80, 40, 0]
-    ]),
-    "3322": np.array([
-        [60, 40, 0], [60, 60, 0], [80, 40, 0], [80, 60, 0]
-    ]),
-    "3323": np.array([
-        [60, 60, 0], [60, 80, 0], [80, 60, 0], [80, 80, 0]
-    ]),
-    "3324": np.array([
-        [60, 80, 0], [60, 100, 0], [80, 80, 0], [80, 100, 0]
-    ]),
-    "3420": np.array([
-        [80, 0, 0], [80, 20, 0], [100, 0, 0], [100, 20, 0]
-    ]),
-    "3421": np.array([
-        [80, 20, 0], [80, 40, 0], [100, 20, 0], [100, 40, 0]
-    ]),
-    "3422": np.array([
-        [80, 40, 0], [80, 60, 0], [100, 40, 0], [100, 60, 0]
-    ]),
-    "3423": np.array([
-        [80, 60, 0], [80, 80, 0], [100, 60, 0], [100, 80, 0]
-    ]),
-    "3424": np.array([
-        [80, 80, 0], [80, 100, 0], [100, 80, 0], [100, 100, 0]
-    ]),
-}
 # Compute transformation using Procrustes analysis (rigid alignment)
 def compute_transformation(source, target):
     source_mean = np.mean(source, axis=0)
@@ -162,58 +85,7 @@ def lazO3d(file_path):
     pcd.points = o3d.utility.Vector3dVector(points)
     return pcd
 
-path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCNM Lidar Raw Data\MLS"
-
-plots = [
-    '3020', '3021', '3022', '3023', '3024',
-    '3120', '3121', '3122', '3123', '3124',
-    '3220', '3221', '3222', '3223', '3224',
-    '3320', '3321', '3322', '3323', '3324',
-    '3420', '3421', '3422', '3423', '3424'
-]
-
-for plot in plots:
-    output_path =os.path.join(path,f"plot1\{plot}_cloud.laz")
-    if not os.path.exists(output_path):
-        try:
-            traj_path= os.path.join(path,f"{plot}results_traj_time.ply")
-            cloud_path= os.path.join(path,f"{plot}results.laz")
-            reference= os.path.join(path, f"{plot}results_trajref.txt")
-
-            target_position=target_positions[plot]
-
-            data = np.loadtxt(reference, skiprows=1)
-            xyz = data[:, :3]  # First three columns
-            reference_pcd = o3d.geometry.PointCloud()
-            reference_pcd.points = o3d.utility.Vector3dVector(xyz)  
-
-            source_points = xyz[:4]
-            T1 = compute_transformation(source_points, target_position)
-            reference_pcd.transform(T1)
-            #trajectory
-            traj= o3d.io.read_point_cloud(traj_path)
-            traj.transform(T1)
-
-            pcd= lazO3d(cloud_path)
-            pcd.transform(T1)
-
-            _,_,zmin=pcd.get_min_bound()
-            _,_,zmax=pcd.get_max_bound()
-            min_bound=reference_pcd.get_min_bound()
-            max_bound=reference_pcd.get_max_bound()
-            min_bound[:2] -= 5  
-            max_bound[:2] += 5
-            min_bound[2:3]= zmin
-            max_bound[2:3]= zmax
-            cropped_cloud = pcd.crop(o3d.geometry.AxisAlignedBoundingBox(min_bound, max_bound))
-
-            points = np.asarray(cropped_cloud.points)
-            header = laspy.LasHeader(point_format=3, version="1.4")  # Use appropriate LAS version
-            las = laspy.LasData(header)
-            las.x, las.y, las.z = points[:, 0], points[:, 1], points[:, 2]  # Store XYZ
-            las.write(output_path)
-        except:
-            print("some sort of error")
+path=r"/home/vasquezv/BCI_50ha"
 
 
 #to ensure aligment of sequential tiles I am going to need a coffee, I have no idea how complicated this is going to get
@@ -294,7 +166,6 @@ for plot in plots:
                 print("The ICP failed, no improvement")
         else:
             print("Fitness is enough")
-
 
 
 
