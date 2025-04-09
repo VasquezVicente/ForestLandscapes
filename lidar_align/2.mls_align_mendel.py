@@ -39,45 +39,45 @@ def draw_registration_result(source, target, transformation):
     target_temp.paint_uniform_color([0, 0.651, 0.929])
     source_temp.transform(transformation)
     o3d.visualization.draw_geometries([source_temp, target_temp])
-    
-def icp(photo_cloud, lidar_cloud, threshold, identity_matrix,radius, max_nn, k):
 
+def icp(photo_cloud, lidar_cloud, threshold, identity_matrix, radius, max_nn, k):
     lidar_cloud.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=radius, max_nn=max_nn))
 
     initial_eval_result = o3d.pipelines.registration.evaluate_registration(
         photo_cloud, lidar_cloud, threshold, identity_matrix)
-    
-    initial= str(initial_eval_result)
-    initial_fitness_match = re.search(r'fitness=(.*?),', initial)
-    initial_fitness_match = float(initial_fitness_match.group(1))
-    final_fitness_match=initial_fitness_match+0.001
-    while initial_fitness_match<1 and final_fitness_match>initial_fitness_match:
-        #initial evaluation
-        initial_eval_result = o3d.pipelines.registration.evaluate_registration(
-            photo_cloud, lidar_cloud, threshold, identity_matrix)
-        initial= str(initial_eval_result)
-        initial_fitness_match = re.search(r'fitness=(.*?),', initial)
-        initial_fitness_match = float(initial_fitness_match.group(1))
-        #icp iteration
+    initial_fitness_match = float(re.search(r'fitness=(.*?),', str(initial_eval_result)).group(1))
+
+    accumulated_transformation = np.identity(4)
+    last_best_transformation = accumulated_transformation
+
+    while initial_fitness_match < 0.99:
+        # Apply ICP
         loss = o3d.pipelines.registration.TukeyLoss(k=k)
         p2p_loss = o3d.pipelines.registration.TransformationEstimationPointToPlane(loss)
         reg_result = o3d.pipelines.registration.registration_icp(
             photo_cloud, lidar_cloud, threshold, identity_matrix, p2p_loss)
-        reg_result_str = str(reg_result)
-        final_fitness_match = re.search(r'fitness=(.*?),', reg_result_str)
-        final_fitness_match = float(final_fitness_match.group(1))
-        if final_fitness_match<1 and final_fitness_match>initial_fitness_match:
-            print('fitness improved from', initial_fitness_match, 'to', final_fitness_match)
-            photo_cloud=photo_cloud.transform(reg_result.transformation)
-            #save the reg result
-            higuest_reg_result=reg_result
-            higuest_reg_result_matrix=reg_result.transformation
-            print('photo_cloud has been transformed')
+
+        final_fitness_match = float(re.search(r'fitness=(.*?),', str(reg_result)).group(1))
+
+        if final_fitness_match > initial_fitness_match:
+            print(f'Fitness improved from {initial_fitness_match} to {final_fitness_match}')
+
+            # Apply the new transformation to the source point cloud
+            photo_cloud.transform(reg_result.transformation)
+
+            # Accumulate transformations
+            accumulated_transformation = reg_result.transformation @ accumulated_transformation
+
+            # Save the best transformation so far
+            last_best_transformation = accumulated_transformation
+
+            initial_fitness_match = final_fitness_match
         else:
-            print('fitness did not improve, while loop will stop')
-            print('final fitness is', final_fitness_match)
-            print('the last photo cloud was not transformed,it is the correct one')
-    return photo_cloud, lidar_cloud, higuest_reg_result, higuest_reg_result_matrix
+            print('Fitness did not improve, stopping iterations.')
+            break
+            
+    return photo_cloud, lidar_cloud, reg_result, last_best_transformation
+
 def lazO3d(file_path):
     cloud = laspy.read(file_path)
     points = np.vstack((cloud.x, cloud.y, cloud.z)).T
@@ -85,15 +85,15 @@ def lazO3d(file_path):
     pcd.points = o3d.utility.Vector3dVector(points)
     return pcd
 
-path=r"/home/vasquezv/BCI_50ha"
+path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCNM Lidar Raw Data\MLS"
 
 
 #to ensure aligment of sequential tiles I am going to need a coffee, I have no idea how complicated this is going to get
 #reference tile placed on 0,0
 
-def evaluate_registration(reference_overlap, target_overlap, threshold, init_matrix):
+def evaluate_registration(target_overlap, reference_overlap, threshold, init_matrix):
     eval_result = o3d.pipelines.registration.evaluate_registration(
-        reference_overlap, target_overlap, threshold, init_matrix)
+        target_overlap, reference_overlap, threshold, init_matrix)
     return eval_result.fitness, eval_result
 
 # Function to transform and save the point cloud
@@ -104,7 +104,7 @@ def save_point_cloud(cloud, output_path):
     las.x, las.y, las.z = points[:, 0], points[:, 1], points[:, 2]
     las.write(output_path)
 
-def calculate_fitness(reference, target, threshold, init_matrix):
+def calculate_fitness(target, reference, threshold, init_matrix):
     bbox_reference = reference.get_axis_aligned_bounding_box()
     bbox_target = target.get_axis_aligned_bounding_box()
 
@@ -112,11 +112,11 @@ def calculate_fitness(reference, target, threshold, init_matrix):
     max_bound = np.minimum(bbox_reference.max_bound, bbox_target.max_bound)
     crop_box = o3d.geometry.AxisAlignedBoundingBox(min_bound, max_bound)
 
-    reference_overlap = reference.crop(crop_box)
-    target_overlap = target.crop(crop_box)
+    reference_overlap = reference.crop(crop_box) #reference 
+    target_overlap = target.crop(crop_box) #target
 
-    fitness, _ = evaluate_registration(reference_overlap, target_overlap, threshold, init_matrix)
-    return fitness, reference_overlap, target_overlap
+    fitness, _ = evaluate_registration(target_overlap, reference_overlap, threshold, init_matrix)
+    return fitness, target_overlap, reference_overlap
 
 
 plots = [
@@ -129,7 +129,7 @@ plots = [
 
 threshold = 0.1
 init_matrix = np.identity(4)
-score_threshold= 0.99
+score_threshold= 0.91
 
 # Dictionary to store fitness scores
 fitness_dict = {}
@@ -153,11 +153,11 @@ for plot in plots:
         target = lazO3d(target_path)
 
         # Calculate fitness score
-        fitness, reference_overlap, target_overlap = calculate_fitness(reference, target, threshold, init_matrix)
+        fitness, target_overlap, reference_overlap = calculate_fitness(target, reference, threshold, init_matrix)
         fitness_dict[(plot, adj_plot)] = fitness
         print(f"Fitness score for {plot} -> {adj_plot}: {fitness}")
         if fitness < score_threshold:
-            _,_,_,result_matrix = icp(reference_overlap, target_overlap, threshold, init_matrix, 4, 100, 3.7)
+            _,_,_,result_matrix = icp(target_overlap, reference_overlap, threshold, init_matrix, 4, 100, 3.7)
             if result_matrix is not None:
                 target_transformed = target.transform(result_matrix)
                 save_point_cloud(target_transformed, target_path)

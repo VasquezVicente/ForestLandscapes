@@ -162,6 +162,13 @@ def lazO3d(file_path):
     pcd.points = o3d.utility.Vector3dVector(points)
     return pcd
 
+def save_point_cloud(cloud, output_path):
+    points = np.asarray(cloud.points)
+    header = laspy.LasHeader(point_format=3, version="1.4")
+    las = laspy.LasData(header)
+    las.x, las.y, las.z = points[:, 0], points[:, 1], points[:, 2]
+    las.write(output_path)
+
 path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCNM Lidar Raw Data\MLS"
 
 plots = [
@@ -193,14 +200,17 @@ for plot in plots:
             #trajectory
             traj= o3d.io.read_point_cloud(traj_path)
             traj.transform(T1)
+            #save the trajectory too
+            output_path_traj =os.path.join(path,f"plot1\{plot}_traj.ply")
+            o3d.io.write_point_cloud(output_path_traj,traj)
 
             pcd= lazO3d(cloud_path)
             pcd.transform(T1)
 
             _,_,zmin=pcd.get_min_bound()
             _,_,zmax=pcd.get_max_bound()
-            min_bound=reference_pcd.get_min_bound()
-            max_bound=reference_pcd.get_max_bound()
+            min_bound=traj.get_min_bound()
+            max_bound=traj.get_max_bound()
             min_bound[:2] -= 5  
             max_bound[:2] += 5
             min_bound[2:3]= zmin
