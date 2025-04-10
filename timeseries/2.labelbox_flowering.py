@@ -3,33 +3,43 @@ import os
 import pandas as pd
 
 client = labelbox.Client(api_key="")
+
+#get the dataset that is currently in labelbox
 dataset = client.get_dataset("cm8bs9pgf00d40746btooascw")
 
+#export the dataset that is currently in labelbox
 export_task = dataset.export()
 export_task.wait_till_done()
 
+#function to parse the labelbox object to a json
 def json_stream_handler(output: labelbox.BufferedJsonConverterOutput):
   print(output.json)
 
+#parse the labelbox object
 stream=export_task.get_buffered_stream(stream_type=labelbox.StreamType.RESULT).start(stream_handler=json_stream_handler)
 
+#get the names that are already in labelbox
 export_json = [data_row.json for data_row in export_task.get_buffered_stream()]
-
 global_keys = [item["data_row"]["external_id"] for item in export_json]
 
+#path to the raw flower dataset hosted in ForestLandscapes server
 data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
 path_out= os.path.join(data_path,'flower_dataset')
 list_flower = [os.path.join(path_out, filename) for filename in os.listdir(path_out)]
 
+#determine the ones the flowering trees that are in the server and not in labelbox
 extra_files = [f for f in list_flower if f not in global_keys]
 extra_file_ids = [os.path.basename(f) for f in extra_files]
 
-flowering_metadata=pd.read_csv(r'timeseries\dataset_corrections\flower2.csv')
+#read in the raw flowering dataset
+flowering_metadata=pd.read_csv(r'timeseries\dataset_corrections\flower.csv')
 flowering_metadata['polygon_id']=flowering_metadata['polygon_id']+".png"
 extra_metadata_rows = flowering_metadata[flowering_metadata['polygon_id'].isin(extra_file_ids)]
+#drop doubly labeled flower
 extra_metadata_rows = extra_metadata_rows.drop_duplicates(subset='polygon_id', keep=False)
 
 
+# create an assets package for labelbox
 assets=[]
 for index, row in extra_metadata_rows.iterrows():
     row_data_path = os.path.join(
@@ -50,6 +60,7 @@ for index, row in extra_metadata_rows.iterrows():
     }
     assets.append(dict_row)
 
+#push the data rows to labelbox
 try:
     task = dataset.create_data_rows(assets)
     task.wait_till_done()
