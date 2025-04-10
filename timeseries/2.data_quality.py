@@ -16,7 +16,7 @@ crowns=gpd.read_file(path_crowns)
 crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
 
 #load main dataset of labels 
-labels_path=r"timeseries/dataset_raw/export_2025_03_20.csv"
+labels_path=r"timeseries/dataset_raw/export_2025_04_09.csv"
 labels=pd.read_csv(labels_path)
 
 #merge both datasets
@@ -79,7 +79,7 @@ flower_csv= flower_dataset.drop(columns=['geometry'])
 flower_csv= flower_csv[['isFlowering', 'leafing', 'floweringIntensity',
        'segmentation', 'observation_id', 'polygon_id', 'date', 'globalId',
        'latin', 'area', 'score', 'tag', 'iou']]
-flower_csv.to_csv(r'timeseries/dataset_corrections/flower2.csv')
+flower_csv.to_csv(r'timeseries/dataset_corrections/flower.csv')
 
 
 
