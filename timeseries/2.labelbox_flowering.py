@@ -113,6 +113,8 @@ flowering_dataset['polygon_id'] = flowering_dataset['polygon_id'].apply(os.path.
 flowering_dataset['polygon_id'] = flowering_dataset['polygon_id'].apply(lambda x: x.split(".")[0])
 
 flowering_dataset=flowering_dataset[~flowering_dataset['leafing'].isna()]
+
+
 flowering_dataset['isFlowering']= flowering_dataset.apply(lambda x: if x.is notna()  then x if na and floweringIntesity >0 then yes)
 
 flowering_dataset['isFlowering'] = flowering_dataset.apply(
@@ -120,4 +122,5 @@ flowering_dataset['isFlowering'] = flowering_dataset.apply(
     axis=1
 )
 
-flowering_dataset.to_csv('timeseries/dataset_corrections/flower_1.csv')
+
+flowering_dataset.to_csv('timeseries/dataset_corrections/flower_out.csv')

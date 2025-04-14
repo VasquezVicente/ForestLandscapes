@@ -66,8 +66,11 @@ def generate_leafing_pdf(unique_leafing_rows, output_pdf, orthomosaic_path, crow
                     annotation_text = f"{row['latin']}\n"
                     for var in variables:
                         if var in row:
-                            annotation_text += f"{var}: {row[var]:.2f}\n"
-            
+                            try:
+                                val = float(row[var])
+                                annotation_text += f"{var}: {val:.2f}\n"
+                            except (ValueError, TypeError):
+                                annotation_text += f"{var}: {row[var]}\n"
                     # Add text label
                     ax.text(5, 5, annotation_text.strip(),
                             fontsize=12, color='white', backgroundcolor='black', verticalalignment='top')

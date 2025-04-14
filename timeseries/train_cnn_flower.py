@@ -18,7 +18,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #Parameters
 num_epochs=6
-batch_size=6
+batch_size=4
 learning_rate= 0.0001
 
 #define transform
@@ -45,7 +45,7 @@ class CrownDataset(Dataset):
             image = self.transform(image)
         return image, labels, img_name
 
-dataset = CrownDataset(csv_file=r"timeseries/dataset_training/train_cnn.csv", root_dir=os.path.join(data_path,"train_dataset"), transform=transform)
+dataset = CrownDataset(csv_file=r"timeseries/dataset_training/train_cnn_flower.csv", root_dir=os.path.join(data_path,"flower_data"), transform=transform)
 
 train_size = int(0.9 * len(dataset))  # 90% for training
 test_size = len(dataset) - train_size  # 10% for testing
@@ -69,7 +69,7 @@ class CNNClassifier(nn.Module):
 
         self.fc1 = nn.Linear(512 * 14 * 14, 1024)  
         self.fc2 = nn.Linear(1024, 256)  
-        self.fc3 = nn.Linear(256, 4)  # Change to 4 for classification
+        self.fc3 = nn.Linear(256, 3)  # Change to 4 for classification
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
@@ -84,47 +84,46 @@ class CNNClassifier(nn.Module):
 
 model= CNNClassifier().to(device)
 
-criterion = nn.CrossEntropyLoss()  # Suitable for multi-class classification
+criterion = nn.CrossEntropyLoss() 
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
 
 
 n_total_steps = len(train_loader)
 for epoch in range(num_epochs):
-    for i, (images, labels,_) in enumerate(train_loader):
+    for i, (images, labels, _) in enumerate(train_loader):
         images = images.to(device)
-        labels = labels.to(device).float()
-        outputs= model(images)
-        #print(outputs)
-        loss = criterion(outputs.view(-1), labels)
+        labels = labels.to(device).long()  # important for CrossEntropyLoss
+
+        outputs = model(images)  # shape should be [batch_size, num_classes]
+        loss = criterion(outputs, labels)  # do NOT reshape outputs
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        #track progress
-        if (i+1)% 10 == 0:
+        if (i+1) % 10 == 0:
             print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{n_total_steps}], Loss: {loss.item():.4f}')
-
 print('Finish Training')
 
 
 true_values = []
 predicted_values = []
-image_names= []
+image_names = []
 
-with torch.no_grad():  
-    model.eval()  
+with torch.no_grad():
+    model.eval()
     for images, labels, image_name in test_loader:
         images = images.to(device)
-        labels = labels.to(device)  #labeles correspond to leafing 
-        image_n = [os.path.basename(path) for path in image_name]
-        # Forward pass
-        outputs = model(images)  #outputs correspond to predicted_leafing
-        
-        # Collect true and predicted values
-        true_values.extend(labels.cpu().numpy())  
-        predicted_values.extend(outputs.cpu().numpy())  
-        image_names.extend(image_n)
+        labels = labels.to(device)
 
+        image_n = [os.path.basename(path) for path in image_name]
+
+        outputs = model(images)  # logits: [batch_size, num_classes]
+        _, predicted = torch.max(outputs, 1)  # Get predicted class index
+
+        true_values.extend(labels.cpu().numpy())  # still fine as floats
+        predicted_values.extend(predicted.cpu().numpy())  # now class indices
+        image_names.extend(image_n)
 
 rmse = np.sqrt(mean_squared_error(true_values, predicted_values))
 print(f"RMSE: {rmse:.4f}")
@@ -143,7 +142,7 @@ predictions_df.to_csv(r'timeseries/dataset_results/cnn_run2.csv')
 # Plotting the true vs predicted values
 plt.figure(figsize=(8, 6))
 plt.scatter(true_values, predicted_values, color='blue', alpha=0.5, label='Predictions')
-plt.plot([0, 100], [0, 100], color='red', linestyle='--', label='Ideal line')  
+plt.plot([0, 6], [0, 6], color='red', linestyle='--', label='Ideal line')  
 plt.xlabel('True Values (Leafing)')
 plt.ylabel('Predicted Values (Leafing)')
 plt.title('True vs Predicted Leafing Values')
@@ -151,6 +150,6 @@ plt.legend()
 plt.grid(True)
 plt.show()
 
-torch.save(model.state_dict(), 'timeseries/models/cnn_model.pth')
+torch.save(model.state_dict(), 'timeseries/models/flower_model.pth')
 
 
