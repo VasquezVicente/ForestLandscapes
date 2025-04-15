@@ -4,7 +4,7 @@ import shutil
 import Metashape
 from collections import defaultdict
 
-project_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\Yasuni_Phantom_20210827\ECUADOR_yasuni_2021_09_04_P4P.psx"
+project_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\Yasuni_Phantom_20210811\ECUADOR_yasuni_2021_08_11_P4P.psx"
 
 doc = Metashape.Document()
 doc.open(project_path)
@@ -31,7 +31,7 @@ for photo in chunk.cameras:
     shutil.copy(src, dst)
 
 from skimage import io, exposure
-ref_image = r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\Yasuni_Phantom_20211011\RGB\DJI_0100_2.JPG"
+ref_image = r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\Yasuni_Phantom_20210811\RGB\DJI_0137_1.JPG"
 ref_image= io.imread(ref_image)
 #io.imread(os.path.join(out_path,"DJI_0053.JPG"))
 

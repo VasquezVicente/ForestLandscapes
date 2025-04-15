@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import shapely
 from rasterio.mask import mask
 import numpy as np
-
+from statistics import mode
+from PIL import Image
 #load polygons
 data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
 path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")
@@ -30,6 +31,10 @@ crowns_labeled= labels.merge(crowns[['area', 'score', 'tag', 'iou', 'geometry','
 
 #Keep only good segmentation
 crowns_labeled= crowns_labeled[crowns_labeled["segmentation"]=="good"]
+
+#We should deal with double labelling before going any further
+
+
 
 #split the dataset to the flowers dataset
 flower_dataset=crowns_labeled[(crowns_labeled["isFlowering"]=="yes")|(crowns_labeled["isFlowering"]=="maybe")]
@@ -105,6 +110,10 @@ globu_flowering= flower_dataset[flower_dataset['latin']=="Symphonia globulifera"
 generate_leafing_pdf(globu_flowering, r'plots/globu_flowering.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering'] )
 cava_flowering= flower_dataset[flower_dataset['latin']=="Cavanillesia platanifolia"]
 generate_leafing_pdf(cava_flowering, r'plots/cava_flowering.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering','isFruiting','date'] )
+guateria= flower_dataset[flower_dataset['latin']=="Guatteria lucens"]
+generate_leafing_pdf(guateria, r'plots/guateria_flowering.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering','isFruiting','date'] )
+prico= flower_dataset[flower_dataset['latin']=="Prioria copaifera"]
+generate_leafing_pdf(prico, r'plots/prico_flowering.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering','date'] )
 
 
 jacaranda_flowering.loc[
@@ -116,7 +125,27 @@ dipteryx_flowering.loc[
     dipteryx_flowering['isFlowering'].isin(['yes', 'maybe']), 'leafing'
 ] = 100
 
-flower_dataset= pd.concat([dipteryx_flowering, jacaranda_flowering])
+zanth_flowering.loc[
+    dipteryx_flowering['isFlowering'].isin(['yes', 'maybe']), 'leafing'
+] = 100
+
+globu_flowering.loc[
+    globu_flowering['isFlowering'].isin(['yes','maybe']), 'leafing'
+] = 95
+
+cava_flowering.loc[
+    cava_flowering['isFlowering'].isin(['yes','maybe']), 'leafing'
+] = 0
+
+guateria.loc[
+    guateria['isFlowering'].isin(['yes','maybe']), 'leafing'
+] = 100
+
+prico.loc[
+    prico['isFlowering'].isin(['yes','maybe']), 'leafing'
+] = 100
+
+flower_dataset= pd.concat([dipteryx_flowering, jacaranda_flowering,zanth_flowering, globu_flowering, cava_flowering, guateria, prico])
 
 #add correction
 correction1=pd.read_csv(r'timeseries/dataset_corrections/check_01.csv')
@@ -126,14 +155,16 @@ correction0['isFlowering']= "no"
 
 crowns_final= pd.concat([non_flower,correction0, correction1,correction0, correction1, flower_dataset])
 
-from statistics import mode
+
 def customLeafing(leafing_values):
     values = list(leafing_values)
     sd_values = np.std(values)
     if len(values) == 1:
+        print('Only one value available')
         return values[0]
     if len(values) >= 2 and sd_values <= 5:
         result= sum(values) / len(values)
+        print("2 or more values with sd <=5",values )
         return result
     if len(values) >= 2 and sd_values > 5:
         try:
@@ -143,9 +174,11 @@ def customLeafing(leafing_values):
         filtered_values = [v for v in values if abs(v - reference_value) <= 5]
         if filtered_values:
             result=sum(filtered_values) / len(filtered_values)
+            print("2 or more values sd>5", values, "output: ", result)
             return result
         else:
             result= None
+            print("2 or more values sd>5", values, "output: ", result)
             return result
 
 def customFloweringNumeric(floweringN):
@@ -172,19 +205,14 @@ def customFloweringNumeric(floweringN):
 def customFlowering(floweringValues): 
     floweringValues=list(floweringValues)
     if len(floweringValues)==1:
-        print("Only one isFlowering value")
         return floweringValues[0]
-    if all(value == floweringValues[0] for value in floweringValues):
-        print("All values are the same: ", floweringValues[0])   
+    if all(value == floweringValues[0] for value in floweringValues): 
         return floweringValues[0]         
     if "maybe" in floweringValues:
-        print("maybe is present")
         return "maybe"
     if "yes" in floweringValues and "no" in floweringValues:
-        print("contradicting yes/no")
         return "maybe"
     else:
-        print('no case')
 
 crowns_labeled_avg = crowns_final.groupby("polygon_id").agg({
     "leafing": customLeafing,
@@ -200,12 +228,19 @@ crowns_labeled_avg = crowns_final.groupby("polygon_id").agg({
 }).reset_index()
 
 
+
+
 #bring in the species once more
 
 crowns_labeled_avg= crowns_labeled_avg.merge(crowns[['latin','polygon_id','geometry']], left_on='polygon_id',right_on='polygon_id', how='left')
 crowns_labeled_avg['latin'] = crowns_labeled_avg['latin_x'].combine_first(crowns_labeled_avg['latin_y'])
 crowns_labeled_avg['geometry'] = crowns_labeled_avg['geometry_x'].combine_first(crowns_labeled_avg['geometry_y'])
 crowns_labeled_avg.drop(columns=['latin_x', 'latin_y','geometry_x','geometry_y'], inplace=True)
+
+##lets try to get prioria copaifera all flowering inividuals and the same amount of not leafing
+prioria_all = crowns_labeled_avg[crowns_labeled_avg['latin'] == "Prioria copaifera"]
+generate_leafing_pdf(prioria_all[0:12], r'plots/prico_normal.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering','date'] )
+
 
 
 #i only want to keep dipteryx and jacaranda for my cnn of flowers
@@ -265,7 +300,7 @@ flower_cnn['file']= flower_cnn['polygon_id']+".png"
 flower_cnn[['file','class']].to_csv(r'timeseries/dataset_training/train_cnn_flower.csv')
 
 
-
+#verify you dont have empty values in leafing
 crowns_labeled_avg=crowns_labeled_avg[~crowns_labeled_avg['leafing'].isna()]
 
 
@@ -273,6 +308,27 @@ cnn_dataset= crowns_labeled_avg[['polygon_id','leafing']]
 cnn_dataset['polygon_id']=cnn_dataset["polygon_id"]+'.png'
 
 cnn_dataset.to_csv(r'timeseries/dataset_training/train_cnn.csv')
+path_out= os.path.join(data_path,"train_dataset")
+for i, (_, row) in enumerate(crowns_labeled_avg.iterrows()):
+    print(f"Processing iteration {i + 1} of {len(crowns_labeled_avg)}")
+    if not os.path.exists(os.path.join(path_out, row['polygon_id']+".png")):
+        path_orthomosaic = os.path.join(orthomosaic_path, f"BCI_50ha_{row['date']}_local.tif")
+        try:
+            with rasterio.open(path_orthomosaic) as src:
+                out_image, out_transform = mask(src, [row.geometry], crop=True)
+                img_array = np.moveaxis(out_image, 0, -1) 
+                img_array = img_array.astype(np.uint8)
+                img_name = f"{row['polygon_id']}.png"
+                img_path = os.path.join(path_out, img_name)
+                Image.fromarray(img_array).save(img_path)
+                
+                print(f"Saved: {img_path}")
+
+        except Exception as e:
+            print(f"Error processing {row['polygon_id']}: {e}")
+    else:
+        print("it already exists in dataset")
+
 
 sgbt_dataset= crowns_labeled_avg[['polygon_id','leafing','isFlowering']].merge(crowns[['date','geometry','polygon_id']],
                               left_on="polygon_id",
@@ -287,3 +343,6 @@ print(sgbt_dataset['leafing'].describe())
 
 #one comes out for the sgbt dataset
 sgbt_dataset.to_file(r'timeseries/dataset_training/train.shp')
+
+
+
