@@ -9,6 +9,11 @@ from scipy.signal import savgol_filter
 import seaborn as sns
 
 data= pd.read_csv(r"timeseries/dataset_predictions/hura_sgbt.csv")
+training_dataset= pd.read_csv(r"timeseries/dataset_training/train_sgbt.csv")
+
+#merge in the original leafing score
+data= data.merge(training_dataset[['polygon_id','leafing']], on='polygon_id', how='left')
+
 
 with open(r'timeseries/models/xgb_model.pkl', 'rb') as file:
       model = pickle.load(file)
@@ -16,8 +21,10 @@ with open(r'timeseries/models/xgb_model.pkl', 'rb') as file:
 X=data[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'shadowM','rSD', 'gSD', 'bSD',
        'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD','entropy','elevSD']]
 
-Y= data[['area', 'score', 'tag', 'GlobalID', 'iou',
+Y= data[['area', 'leafing', 'tag', 'GlobalID', 'iou',
        'date', 'latin', 'polygon_id']]
+
+
 X_predicted=model.predict(X)
 df_final = Y.copy()  # Copy Y to keep the same structure
 df_final['leafing_predicted'] = X_predicted
@@ -27,13 +34,15 @@ df_final['dayYear'] = df_final['date'].dt.dayofyear
 df_final['year']= df_final['date'].dt.year
 df_final['date_num']= (df_final['date'] -df_final['date'].min()).dt.days
 
+df_final['leafing']= df_final['leafing'].fillna(df_final['leafing_predicted'])
+
 globalID= df_final['GlobalID'].unique()
 len(globalID)
 plt.figure(figsize=(20, 6))
 for tree in df_final['GlobalID'].unique():
     indv = df_final[df_final['GlobalID'] == tree]
     tagn= indv['tag'].unique()[0]
-    plt.plot(indv['date'], indv['leafing_predicted'], label=f"Tree {tagn}", alpha=0.7)
+    plt.plot(indv['date'], indv['leafing'], label=f"Tree {tagn}", alpha=0.7)
 plt.xlabel('Date')
 plt.ylabel('Leafing Predicted')
 plt.grid(True)
@@ -42,6 +51,7 @@ plt.legend(title="ForestGeo Tag", bbox_to_anchor=(1, 1), loc='upper left')
 plt.show()
 
 
+# SPECIES SPECIFIC PATTERN YEARLY
 df_final['tag_numeric'] = pd.Categorical(df_final['tag']).codes
 lowess = sm.nonparametric.lowess(df_final['leafing_predicted'], df_final['dayYear'], frac=0.09)  # Adjust frac for smoothing level
 plt.plot(lowess[:, 0], lowess[:, 1], color='red', linewidth=2, label="LOWESS Trend")
@@ -86,8 +96,8 @@ for tree in globalID:
     #plt.figure(figsize=(12, 6))
     #plt.scatter(indv['date_num'], indv['leafing_predicted'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
     #plt.xlabel('Day of year')
-    ##plt.ylabel('Leafing Predicted')
-    ##plt.grid(True)
+    #plt.ylabel('Leafing Predicted')
+    #plt.grid(True)
     #plt.title('Leafing Predicted vs Day of Year')
     #plt.legend()
     #plt.colorbar(label='Year')
@@ -100,6 +110,8 @@ for tree in globalID:
     indv['GlobalID'] = tree
     all_df.append(indv)
     print("one done")
+
+
 
 out_df = pd.concat(all_df, ignore_index=True)
 out_df['GlobalID']
@@ -152,64 +164,5 @@ for tree in globalID:
 out_df_2 = pd.concat(all_classified, ignore_index=True)
 
 
-plt.figure(figsize=(12, 6))
-    plt.scatter(indv['date_num'], indv['leafing_predicted'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
-    plt.xlabel('Day of year')
-    plt.ylabel('Leafing Predicted')
-    plt.grid(True)
-    plt.title('Leafing Predicted vs Day of Year')
-    plt.legend()
-    plt.colorbar(label='Year')
-    for bp in bkps_python:
-        plt.axvline(x=bp, color='red', linestyle='--', linewidth=2)
-    plt.show()
-# I am goint to have to extract the species specific metric
-# maybe i can do that with the etire dataset, then filter the trees that do not match the pattern(noise)
-# i am going to have to aggregate the dates
 
-df = df_final.groupby('date', as_index=False)['leafing_predicted'].mean()
-full_date_range = pd.date_range(start=df_final['date'].min(), end=df_final['date'].max(), freq='D')
-full_df = pd.DataFrame({'date': full_date_range})
-full_df['dayYear'] = full_df['date'].dt.dayofyear
-full_df['date_num'] = (full_df['date'] - full_df['date'].min()).dt.days
-full_df['year'] = full_df['date'].dt.year
-full = pd.merge(full_df, df, on=['date'], how='left')
-full['leafing_predicted'] = full['leafing_predicted'].interpolate(method='linear')
-
-plt.scatter(full['date'], full['leafing_predicted'])
-plt.show()
-
-signal = full['leafing_predicted'].values
-algo_python = rpt.Pelt(model="rbf",jump=1,min_size=15).fit(signal)
-penalty_value = 30
-bkps_python = algo_python.predict(pen=penalty_value)
-
-
-plt.figure(figsize=(12, 6))
-plt.scatter(full['date_num'], full['leafing_predicted'], c=full['year'], cmap='viridis', label='Leafing Predicted')
-plt.xlabel('Date numeric')
-plt.ylabel('Mean leaf coverage')
-plt.grid(True)
-plt.title('Hura crepitans mean leaf coverage vs date')
-plt.legend()
-plt.colorbar(label='Year')
-
-for bp in bkps_python:
-    plt.axvline(x=bp, color='red', linestyle='--', linewidth=2)
-    date_label = full.loc[full['date_num'] == bp, 'date'].dt.date.values  # Extract only date part
-    if len(date_label) > 0:
-        plt.text(bp, full['leafing_predicted'].mean(), str(date_label[0]), 
-                 rotation=45, color='black', fontsize=10, verticalalignment='center_baseline')
-plt.show()
-
-
-breakouts_2019= break_group[break_group['year']==2019]
-
-plt.figure(figsize=(10, 6))
-sns.histplot(breakouts_2019['dayYear'], kde=True, bins=365, color='blue', stat='density')
-plt.title('Distribution of Breakouts in 2019 (Day of Year)', fontsize=16)
-plt.xlabel('Day of Year', fontsize=12)
-plt.ylabel('Density', fontsize=12)
-plt.xticks(rotation=45)
-plt.grid(True)
-plt.show()
+out_df_2[out_df_2['breakpoint']==True].to_csv(r'timeseries/dataset_analysis.csv')

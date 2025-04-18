@@ -60,12 +60,14 @@ opt_chunk_size(ctg1)<- 20
 opt_chunk_buffer(ctg1)<-5
 plot(ctg1,chunk=TRUE)
 plot(final_geometry, add=TRUE)
-# classify ground points
 
+
+# classify ground points
 outdir<-"//stri-sm01/ForestLandscapes/UAVSHARE/BCNM Lidar Raw Data/TLS/plot1/classified/"
 dir.create(outdir)
 opt_output_files(ctg1) <- paste0(outdir,"/retile_{XLEFT}_{YBOTTOM}")
 classified_ctg1 <- classify_ground(ctg1, csf(cloth_resolution=0.3, rigidness=3L))
+
 
 classfied_ctg1<- readLAScatalog("//stri-sm01/ForestLandscapes/UAVSHARE/BCNM Lidar Raw Data/TLS/plot1/classified")
 plot(classfied_ctg1,chunk=TRUE)
@@ -89,6 +91,7 @@ normalized_tls <- normalize_height(newctg,dtm)
 
 
 normalized_tls<- readLAScatalog("//stri-sm01/ForestLandscapes/UAVSHARE/BCNM Lidar Raw Data/tLS/plot1/normalized")
+
 opt_filter(normalized_tls)<-"-drop_z_above 40"
 chm_tls<- rasterize_canopy(normalized_tls, 0.2, p2r(subcircle=0.20))
 plot(chm_tls, main="TLS Canopy Height Model: Plot 1")

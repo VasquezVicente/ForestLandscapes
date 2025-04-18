@@ -4,7 +4,7 @@ import shutil
 import Metashape
 from collections import defaultdict
 
-project_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\Yasuni_Phantom_20210811\ECUADOR_yasuni_2021_08_11_P4P.psx"
+project_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\Yasuni_Phantom_20191201_02\ECUADOR_yasuni_2019_12_01_P4P.psx"
 
 doc = Metashape.Document()
 doc.open(project_path)
