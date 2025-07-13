@@ -1,6 +1,90 @@
 import labelbox
 import os
 import pandas as pd
+import numpy as np
+from PIL import Image
+import pickle
+import rasterio
+from rasterio.mask import mask
+import geopandas as gpd
+import numpy as np
+from shapely.geometry import box
+import shapely
+import matplotlib.pyplot as plt
+from PIL import Image
+
+## data paths
+data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
+orthomosaic_path=os.path.join(data_path,"orthomosaic_aligned_local")
+orthomosaic_list=os.listdir(orthomosaic_path)
+data= pd.read_csv(r"timeseries/dataset_predictions/jacaranda_sgbt.csv")
+
+#import the flower model
+with open(r'timeseries/models/xgb_model_flower.pkl', 'rb') as file:
+      model_flower = pickle.load(file)
+
+X=data[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'shadowM','rSD', 'gSD', 'bSD',
+       'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD','entropy','elevSD']]
+
+Y= data[['area', 'score', 'tag', 'GlobalID', 'iou',
+       'date', 'latin', 'polygon_id']]
+
+X_predict_flower= model_flower.predict(X)
+df_final = Y.copy()  # Copy Y to keep the same structure
+df_final['isFlowering_predicted'] = X_predict_flower
+
+path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
+crowns=gpd.read_file(path_crowns)
+crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
+flower_cnn= df_final[(df_final['isFlowering_predicted']==1)|(df_final['isFlowering_predicted']==2)]
+flower_cnn['polygon_id'] = flower_cnn['GlobalID'].astype(str) + "_" + flower_cnn['date'].str.replace("_", "-", regex=False)
+                                                                                                     
+flower_cnn_2= crowns[['polygon_id','geometry']].merge(flower_cnn, left_on='polygon_id', right_on='polygon_id',how='right')
+
+path_out=os.path.join(data_path,"flower_dataset")
+os.makedirs(path_out, exist_ok=True)
+for i, (_, row) in enumerate(flower_cnn_2.iterrows()):
+    print(f"Processing iteration {i + 1} of {len(flower_cnn_2)}")
+    if not os.path.exists(os.path.join(path_out, row['polygon_id']+".png")):
+        path_orthomosaic = os.path.join(data_path, 'orthomosaic_aligned_local', f"BCI_50ha_{row['date']}_local.tif")
+        try:
+            with rasterio.open(path_orthomosaic) as src:
+                bounds = row.geometry.bounds
+                box_crown_5 = box(bounds[0] - 5, bounds[1] - 5, bounds[2] + 5, bounds[3] + 5)
+                print(box_crown_5)
+                out_image, out_transform = mask(src, [box_crown_5], crop=True)
+                x_min, y_min = out_transform * (0, 0)
+                xres, yres = out_transform[0], out_transform[4]
+
+                transformed_geom = shapely.ops.transform(
+                        lambda x, y: ((x - x_min) / xres, (y - y_min) / yres),
+                        row.geometry
+                    )
+                
+                img_name = f"{row['polygon_id']}.png"
+                img_path = os.path.join(path_out, img_name)
+
+                fig, ax = plt.subplots(figsize=(10, 10))
+
+                ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
+
+                ax.plot(*transformed_geom.exterior.xy, color='red')
+
+                for interior in transformed_geom.interiors:
+                    ax.plot(*interior.xy, color='red')
+
+                ax.axis('off')
+
+                fig.savefig(img_path, bbox_inches='tight', pad_inches=0)
+                plt.close(fig)
+                
+                print(f"Saved: {img_path}")
+
+        except Exception as e:
+            print(f"Error processing {row['polygon_id']}: {e}")
+    else:
+        print("it already exists in dataset")
+
 
 client = labelbox.Client(api_key="")
 
@@ -16,6 +100,7 @@ def json_stream_handler(output: labelbox.BufferedJsonConverterOutput):
   print(output.json)
 
 #parse the labelbox object
+
 stream=export_task.get_buffered_stream(stream_type=labelbox.StreamType.RESULT).start(stream_handler=json_stream_handler)
 
 #get the names that are already in labelbox
@@ -32,13 +117,21 @@ extra_files = [f for f in list_flower if f not in global_keys]
 extra_file_ids = [os.path.basename(f) for f in extra_files]
 
 #read in the raw flowering dataset
-flowering_metadata=pd.read_csv(r'timeseries\dataset_corrections\flower.csv')
+flowering_metadata=pd.read_csv(r'timeseries\dataset_corrections\flower.csv')  ##the predicted flowering does not have the metadata
 flowering_metadata['polygon_id']=flowering_metadata['polygon_id']+".png"
 extra_metadata_rows = flowering_metadata[flowering_metadata['polygon_id'].isin(extra_file_ids)]
-#drop doubly labeled flower
 extra_metadata_rows = extra_metadata_rows.drop_duplicates(subset='polygon_id', keep=False)
 
 
+##extra_file_ids
+extra_file_ids
+extra_metadata_rows= pd.DataFrame({'polygon_id': extra_file_ids})
+crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")+".png"
+extra_metadata_rows= extra_metadata_rows.merge(crowns[['polygon_id','latin','date']],how='left', right_on='polygon_id', left_on='polygon_id')
+
+extra_metadata_rows['floweringIntensity']= 0
+extra_metadata_rows['isFlowering']= 'maybe'
+extra_metadata_rows['leafing']= 0
 # create an assets package for labelbox
 assets=[]
 for index, row in extra_metadata_rows.iterrows():
@@ -115,10 +208,9 @@ flowering_dataset['polygon_id'] = flowering_dataset['polygon_id'].apply(lambda x
 flowering_dataset=flowering_dataset[~flowering_dataset['leafing'].isna()]
 
 
-flowering_dataset['isFlowering']= flowering_dataset.apply(lambda x: if x.is notna()  then x if na and floweringIntesity >0 then yes)
-
 flowering_dataset['isFlowering'] = flowering_dataset.apply(
-    lambda x: x['isFlowering'] if pd.notna(x['isFlowering']) else ('yes' if x['floweringIntensity'] > 0 else 'no'),
+    lambda x: x['floweringIntensity'] if pd.notna(x['floweringIntensity']) 
+              else ('yes' if x['floweringIntensity'] > 0 else 'no'),
     axis=1
 )
 

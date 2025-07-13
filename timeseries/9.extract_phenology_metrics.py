@@ -8,39 +8,21 @@ import statsmodels.api as sm
 from scipy.signal import savgol_filter
 import seaborn as sns
 
-data= pd.read_csv(r"timeseries/dataset_predictions/hura_sgbt.csv")
-training_dataset= pd.read_csv(r"timeseries/dataset_training/train_sgbt.csv")
-
-#merge in the original leafing score
-data= data.merge(training_dataset[['polygon_id','leafing']], on='polygon_id', how='left')
-
-
-with open(r'timeseries/models/xgb_model.pkl', 'rb') as file:
-      model = pickle.load(file)
-
-X=data[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'shadowM','rSD', 'gSD', 'bSD',
-       'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD','entropy','elevSD']]
-
-Y= data[['area', 'leafing', 'tag', 'GlobalID', 'iou',
-       'date', 'latin', 'polygon_id']]
+data= pd.read_csv(r"timeseries/dataset_extracted/quararibea.csv")
+data['latin']
+##date wrangling
+data['date'] = pd.to_datetime(data['date'], format='%Y-%m-%d')
+data['dayYear'] = data['date'].dt.dayofyear
+data['year']= data['date'].dt.year
+data['date_num']= (data['date'] -data['date'].min()).dt.days
 
 
-X_predicted=model.predict(X)
-df_final = Y.copy()  # Copy Y to keep the same structure
-df_final['leafing_predicted'] = X_predicted
-
-df_final['date'] = pd.to_datetime(df_final['date'], format='%Y_%m_%d')
-df_final['dayYear'] = df_final['date'].dt.dayofyear
-df_final['year']= df_final['date'].dt.year
-df_final['date_num']= (df_final['date'] -df_final['date'].min()).dt.days
-
-df_final['leafing']= df_final['leafing'].fillna(df_final['leafing_predicted'])
-
-globalID= df_final['GlobalID'].unique()
+##plot all trees leafing prediction against the date
+globalID= data['GlobalID'].unique()
 len(globalID)
 plt.figure(figsize=(20, 6))
-for tree in df_final['GlobalID'].unique():
-    indv = df_final[df_final['GlobalID'] == tree]
+for tree in data['GlobalID'].unique():
+    indv = data[data['GlobalID'] == tree]
     tagn= indv['tag'].unique()[0]
     plt.plot(indv['date'], indv['leafing'], label=f"Tree {tagn}", alpha=0.7)
 plt.xlabel('Date')
@@ -52,11 +34,10 @@ plt.show()
 
 
 # SPECIES SPECIFIC PATTERN YEARLY
-df_final['tag_numeric'] = pd.Categorical(df_final['tag']).codes
-lowess = sm.nonparametric.lowess(df_final['leafing_predicted'], df_final['dayYear'], frac=0.09)  # Adjust frac for smoothing level
+data['tag_numeric'] = pd.Categorical(data['tag']).codes
+lowess = sm.nonparametric.lowess(data['leafing_predicted'], data['dayYear'], frac=0.09)  # Adjust frac for smoothing level
 plt.plot(lowess[:, 0], lowess[:, 1], color='red', linewidth=2, label="LOWESS Trend")
-plt.scatter(df_final['dayYear'], df_final['leafing_predicted'], c=df_final['tag_numeric'], cmap='viridis', alpha=0.7)
-
+plt.scatter(data['dayYear'], data['leafing_predicted'], c=data['tag_numeric'], cmap='viridis', alpha=0.7)
 plt.xlabel('Day of Year')
 plt.ylabel('Leafing Predicted')
 plt.grid(True)
@@ -66,16 +47,16 @@ plt.show()
 
 all_df = []
 for tree in globalID:
-    indv = df_final[df_final['GlobalID'] == tree]
-    full_date_range = pd.date_range(start=df_final['date'].min(), end=df_final['date'].max(), freq='D')
+    indv = data[data['GlobalID'] == tree]
+    full_date_range = pd.date_range(start=data['date'].min(), end=data['date'].max(), freq='D')
     full_df = pd.DataFrame({'date': full_date_range})
     full_df['dayYear'] = full_df['date'].dt.dayofyear
     full_df['date_num'] = (full_df['date'] - full_df['date'].min()).dt.days
     full_df['year'] = full_df['date'].dt.year
     indv = pd.merge(full_df, indv, on=['date', 'date_num', 'year', 'dayYear'], how='left')
 
-    indv['leafing_predicted'] = indv['leafing_predicted'].interpolate(method='linear')
-    lowess_smoothed = sm.nonparametric.lowess(indv['leafing_predicted'], indv['date_num'], frac=0.1)
+    indv['leafing'] = indv['leafing'].interpolate(method='linear')
+    #lowess_smoothed = sm.nonparametric.lowess(indv['leafing_predicted'], indv['date_num'], frac=0.1)
 
     #plt.figure(figsize=(12, 6))
     #plt.scatter(indv['date_num'], indv['leafing_predicted'], alpha=0.5, label='Raw Data')
@@ -87,14 +68,14 @@ for tree in globalID:
     #plt.legend()
     #plt.show()
 
-    signal = indv['leafing_predicted'].values
+    signal = indv['leafing'].values
     algo_python = rpt.Pelt(model="rbf",jump=1,min_size=15).fit(signal)
-    penalty_value = 30
+    penalty_value = 25
     bkps_python = algo_python.predict(pen=penalty_value)
 
 
     #plt.figure(figsize=(12, 6))
-    #plt.scatter(indv['date_num'], indv['leafing_predicted'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
+    #plt.scatter(indv['date_num'], indv['leafing'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
     #plt.xlabel('Day of year')
     #plt.ylabel('Leafing Predicted')
     #plt.grid(True)
@@ -139,8 +120,8 @@ for tree in globalID:
                     post_data = indv.loc[(indv['date_num'] > post_start) & (indv['date_num'] <= post_end)]
                     
                     # Calculate the slopes
-                    pre_slope = calculate_slope(pre_data['date_num'].values, pre_data['leafing_predicted'].values)
-                    post_slope = calculate_slope(post_data['date_num'].values, post_data['leafing_predicted'].values)
+                    pre_slope = calculate_slope(pre_data['date_num'].values, pre_data['leafing'].values)
+                    post_slope = calculate_slope(post_data['date_num'].values, post_data['leafing'].values)
                     
                     # Classify the breakpoint based on the slopes
                     if pre_slope > 0 and post_slope >0:                        # they are both positive obiously increasing
@@ -162,7 +143,7 @@ for tree in globalID:
     all_classified.append(indv)
 
 out_df_2 = pd.concat(all_classified, ignore_index=True)
+len(out_df_2['GlobalID'].unique())
 
+out_df_2.to_csv(r'timeseries/dataset_analysis/quararibea_analysis.csv')
 
-
-out_df_2[out_df_2['breakpoint']==True].to_csv(r'timeseries/dataset_analysis.csv')

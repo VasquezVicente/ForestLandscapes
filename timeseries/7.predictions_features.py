@@ -17,13 +17,7 @@ from skimage import img_as_ubyte
 from skimage.morphology import disk
 import sys
 import warnings
-from timeseries.utils import calculate_glcm_features
-
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))  # Add script's directory
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory
-# Suppress rasterio warnings
-warnings.filterwarnings("ignore", category=NotGeoreferencedWarning)
-warnings.filterwarnings("ignore", category=NodataShadowWarning)
+from utils import calculate_glcm_features
 
 
 #load polygons
@@ -34,7 +28,7 @@ crowns=gpd.read_file(path_crowns)
 crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
 
 
-species_subset= crowns[crowns['latin']=='Jacaranda copaia'].reset_index()
+species_subset= crowns[crowns['latin']=='Alseis blackiana'].reset_index()
 
 pixel_unmixing=gpd.read_file(os.path.join(data_path,'aux_files/pixel_unmixing.shp'))
 gv_pixels = []  # For GV (Green Vegetation)
@@ -168,4 +162,4 @@ for orthomosaic in list_ortho:
 
 
 species_subset=species_subset.drop(columns=['geometry'])
-species_subset.to_csv(r"timeseries/dataset_predictions/jacaranda_sgbt.csv")
+species_subset.to_csv(r"timeseries/dataset_predictions/alseis_sgbt.csv")

@@ -85,6 +85,9 @@ ortho=os.path.join(data_path,'orthomosaic_aligned_local')
 path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
 crowns=gpd.read_file(path_crowns)
 crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
-dataset_bias= dataset_bias.merge(crowns[['polygon_id','geometry','latin']], on='polygon_id',how='left')
+dataset_bias= dataset_bias.merge(crowns[['polygon_id','geometry']], on='polygon_id',how='left')
+
+dataset_bias['date'] = dataset_bias['date'].str.replace("-", "_")
+
 
 generate_leafing_pdf(dataset_bias,r'plots/check1.pdf',orthomosaic_path=ortho, crowns_per_page= 12, variables=['leafing_predicted','leafing'])

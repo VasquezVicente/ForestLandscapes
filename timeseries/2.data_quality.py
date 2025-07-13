@@ -20,11 +20,26 @@ crowns=gpd.read_file(path_crowns)
 crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
 
 #load main dataset of labels 
-labels_path=r"timeseries/dataset_raw/export_2025_04_09.csv"
+labels_path=r"timeseries/dataset_raw/export_2025_05_30.csv"
 labels=pd.read_csv(labels_path)
+labels.columns
+#We should deal with double labelling before going any further
+#add correction
+correction1=pd.read_csv(r'timeseries/dataset_corrections/check_01.csv')
+correction1['isFlowering']= "no"
+correction1['floweringIntensity']=0
+correction1['segmentation']="good"
+correction1=correction1[['polygon_id', 'leafing', 'latin', 'date', 'isFlowering', 'floweringIntensity', 'segmentation']]
+correction0=pd.read_csv(r'timeseries/dataset_corrections/check_0.csv')
+correction0['isFlowering']= "no"
+correction0['floweringIntensity']=0
+correction0['segmentation']="good"
+correction0=correction0[['polygon_id', 'leafing', 'latin', 'date', 'isFlowering', 'floweringIntensity', 'segmentation']]
+
+crowns_final= pd.concat([correction0, correction1,correction0, correction1,labels])
 
 #merge both datasets
-crowns_labeled= labels.merge(crowns[['area', 'score', 'tag', 'iou', 'geometry','polygon_id']],
+crowns_labeled= crowns_final.merge(crowns[['area', 'score', 'tag', 'iou', 'geometry','polygon_id']],
                               left_on="polygon_id",
                                 right_on="polygon_id",
                                   how="left")
@@ -32,128 +47,8 @@ crowns_labeled= labels.merge(crowns[['area', 'score', 'tag', 'iou', 'geometry','
 #Keep only good segmentation
 crowns_labeled= crowns_labeled[crowns_labeled["segmentation"]=="good"]
 
-#We should deal with double labelling before going any further
-
-
-
-#split the dataset to the flowers dataset
-flower_dataset=crowns_labeled[(crowns_labeled["isFlowering"]=="yes")|(crowns_labeled["isFlowering"]=="maybe")]
-path_out= os.path.join(data_path,'flower_dataset')
-#extract the features, crown based 
-for i, (_, row) in enumerate(flower_dataset.iterrows()):
-    print(f"Processing iteration {i + 1} of {len(flower_dataset)}")
-    if not os.path.exists(os.path.join(path_out, row['polygon_id']+".png")):
-        path_orthomosaic = os.path.join(data_path, 'orthomosaic_aligned_local', f"BCI_50ha_{row['date']}_local.tif")
-        try:
-            with rasterio.open(path_orthomosaic) as src:
-                bounds = row.geometry.bounds
-                box_crown_5 = box(bounds[0] - 5, bounds[1] - 5, bounds[2] + 5, bounds[3] + 5)
-                print(box_crown_5)
-                out_image, out_transform = mask(src, [box_crown_5], crop=True)
-                x_min, y_min = out_transform * (0, 0)
-                xres, yres = out_transform[0], out_transform[4]
-
-                transformed_geom = shapely.ops.transform(
-                        lambda x, y: ((x - x_min) / xres, (y - y_min) / yres),
-                        row.geometry
-                    )
-                
-                img_name = f"{row['polygon_id']}.png"
-                img_path = os.path.join(path_out, img_name)
-
-                fig, ax = plt.subplots(figsize=(10, 10))
-
-                ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
-
-                ax.plot(*transformed_geom.exterior.xy, color='red')
-
-                for interior in transformed_geom.interiors:
-                    ax.plot(*interior.xy, color='red')
-
-                ax.axis('off')
-
-                fig.savefig(img_path, bbox_inches='tight', pad_inches=0)
-                plt.close(fig)
-                
-                print(f"Saved: {img_path}")
-
-        except Exception as e:
-            print(f"Error processing {row['polygon_id']}: {e}")
-    else:
-        print("it already exists in dataset")
-
-
-flower_csv= flower_dataset.drop(columns=['geometry'])
-flower_csv= flower_csv[['isFlowering', 'leafing', 'floweringIntensity',
-       'segmentation', 'observation_id', 'polygon_id', 'date', 'globalId',
-       'latin', 'area', 'score', 'tag', 'iou']]
-flower_csv.to_csv(r'timeseries/dataset_corrections/flower.csv')
-
-
-
-non_flower= crowns_labeled[crowns_labeled['isFlowering']=="no"]
-#read the flower dataset back in 
-flower_dataset=pd.read_csv(r"timeseries/dataset_corrections/flower_out.csv")
-# get rid of the flowering lianas
-flower_dataset= flower_dataset[flower_dataset['flowering_liana']!="yes"]
-flower_dataset= flower_dataset.merge(crowns[['latin','polygon_id','geometry','date']],on='polygon_id', how='left')
-
-
-#generate a pdf for dipteryx oleifera
-dipteryx_flowering= flower_dataset[flower_dataset['latin']=="Dipteryx oleifera"]
-generate_leafing_pdf(dipteryx_flowering, r'plots/dipteryx_flowering.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering'] )
-jacaranda_flowering= flower_dataset[flower_dataset['latin']=="Jacaranda copaia"]
-generate_leafing_pdf(jacaranda_flowering, r'plots/jacaranda_flowering.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering'] )
-zanth_flowering= flower_dataset[flower_dataset['latin']=="Zanthoxylum ekmanii"]
-generate_leafing_pdf(zanth_flowering, r'plots/zanthoxylum_flowering.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering'] )
-globu_flowering= flower_dataset[flower_dataset['latin']=="Symphonia globulifera"]
-generate_leafing_pdf(globu_flowering, r'plots/globu_flowering.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering'] )
-cava_flowering= flower_dataset[flower_dataset['latin']=="Cavanillesia platanifolia"]
-generate_leafing_pdf(cava_flowering, r'plots/cava_flowering.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering','isFruiting','date'] )
-guateria= flower_dataset[flower_dataset['latin']=="Guatteria lucens"]
-generate_leafing_pdf(guateria, r'plots/guateria_flowering.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering','isFruiting','date'] )
-prico= flower_dataset[flower_dataset['latin']=="Prioria copaifera"]
-generate_leafing_pdf(prico, r'plots/prico_flowering.pdf',orthomosaic_path, crowns_per_page=12,variables=['floweringIntensity','isFlowering','date'] )
-
-
-jacaranda_flowering.loc[
-    jacaranda_flowering['isFlowering'].isin(['yes', 'maybe']), 'leafing'
-] = 100
-
-# For dipteryx
-dipteryx_flowering.loc[
-    dipteryx_flowering['isFlowering'].isin(['yes', 'maybe']), 'leafing'
-] = 100
-
-zanth_flowering.loc[
-    dipteryx_flowering['isFlowering'].isin(['yes', 'maybe']), 'leafing'
-] = 100
-
-globu_flowering.loc[
-    globu_flowering['isFlowering'].isin(['yes','maybe']), 'leafing'
-] = 95
-
-cava_flowering.loc[
-    cava_flowering['isFlowering'].isin(['yes','maybe']), 'leafing'
-] = 0
-
-guateria.loc[
-    guateria['isFlowering'].isin(['yes','maybe']), 'leafing'
-] = 100
-
-prico.loc[
-    prico['isFlowering'].isin(['yes','maybe']), 'leafing'
-] = 100
-
-flower_dataset= pd.concat([dipteryx_flowering, jacaranda_flowering,zanth_flowering, globu_flowering, cava_flowering, guateria, prico])
-
-#add correction
-correction1=pd.read_csv(r'timeseries/dataset_corrections/check_01.csv')
-correction1['isFlowering']= "no"
-correction0=pd.read_csv(r'timeseries/dataset_corrections/check_0.csv')
-correction0['isFlowering']= "no"
-
-crowns_final= pd.concat([non_flower,correction0, correction1,correction0, correction1, flower_dataset])
+#how many repeated ones
+print("Repeated crowns: ",len(crowns_labeled)-len(crowns_labeled['polygon_id'].unique()))
 
 
 def customLeafing(leafing_values):
@@ -214,7 +109,7 @@ def customFlowering(floweringValues):
         return "maybe"
     else:
 
-crowns_labeled_avg = crowns_final.groupby("polygon_id").agg({
+crowns_labeled_avg = crowns_labeled.groupby("polygon_id").agg({
     "leafing": customLeafing,
     "isFlowering":customFlowering,
     "floweringIntensity": customFloweringNumeric,
@@ -228,14 +123,101 @@ crowns_labeled_avg = crowns_final.groupby("polygon_id").agg({
 }).reset_index()
 
 
+#split the dataset to the flowers dataset
+flower_dataset=crowns_labeled_avg[(crowns_labeled_avg["isFlowering"]=="yes")|(crowns_labeled_avg["isFlowering"]=="maybe")]
+path_out= os.path.join(data_path,'flower_dataset')
+#extract the features, crown based 
+for i, (_, row) in enumerate(flower_dataset.iterrows()):
+    print(f"Processing iteration {i + 1} of {len(flower_dataset)}")
+    if not os.path.exists(os.path.join(path_out, row['polygon_id']+".png")):
+        path_orthomosaic = os.path.join(data_path, 'orthomosaic_aligned_local', f"BCI_50ha_{row['date']}_local.tif")
+        try:
+            with rasterio.open(path_orthomosaic) as src:
+                bounds = row.geometry.bounds
+                box_crown_5 = box(bounds[0] - 5, bounds[1] - 5, bounds[2] + 5, bounds[3] + 5)
+                print(box_crown_5)
+                out_image, out_transform = mask(src, [box_crown_5], crop=True)
+                x_min, y_min = out_transform * (0, 0)
+                xres, yres = out_transform[0], out_transform[4]
+
+                transformed_geom = shapely.ops.transform(
+                        lambda x, y: ((x - x_min) / xres, (y - y_min) / yres),
+                        row.geometry
+                    )
+                
+                img_name = f"{row['polygon_id']}.png"
+                img_path = os.path.join(path_out, img_name)
+
+                fig, ax = plt.subplots(figsize=(10, 10))
+
+                ax.imshow(out_image.transpose((1, 2, 0))[:, :, 0:3])
+
+                ax.plot(*transformed_geom.exterior.xy, color='red')
+
+                for interior in transformed_geom.interiors:
+                    ax.plot(*interior.xy, color='red')
+
+                ax.axis('off')
+
+                fig.savefig(img_path, bbox_inches='tight', pad_inches=0)
+                plt.close(fig)
+                
+                print(f"Saved: {img_path}")
+
+        except Exception as e:
+            print(f"Error processing {row['polygon_id']}: {e}")
+    else:
+        print("it already exists in dataset")
 
 
-#bring in the species once more
+flower_csv= flower_dataset.drop(columns=['geometry'])
+flower_csv= flower_csv[['isFlowering', 'leafing', 'floweringIntensity',
+       'polygon_id', 'date','latin', 'area', 'score', 'tag', 'iou']]
+flower_csv.to_csv(r'timeseries/dataset_corrections/flower.csv')
 
-crowns_labeled_avg= crowns_labeled_avg.merge(crowns[['latin','polygon_id','geometry']], left_on='polygon_id',right_on='polygon_id', how='left')
-crowns_labeled_avg['latin'] = crowns_labeled_avg['latin_x'].combine_first(crowns_labeled_avg['latin_y'])
-crowns_labeled_avg['geometry'] = crowns_labeled_avg['geometry_x'].combine_first(crowns_labeled_avg['geometry_y'])
-crowns_labeled_avg.drop(columns=['latin_x', 'latin_y','geometry_x','geometry_y'], inplace=True)
+###break to call labelbox flowering
+
+
+non_flower= crowns_labeled_avg[crowns_labeled_avg['isFlowering']=="no"]
+#read the flower dataset back in 
+flower_dataset=pd.read_csv(r"timeseries/dataset_corrections/flower_out.csv")
+# get rid of the flowering lianas
+flower_dataset= flower_dataset[flower_dataset['flowering_liana']!="yes"]
+
+#merge no flower and flower datasets
+
+all= pd.concat([non_flower,flower_dataset])
+all.columns
+all_crowns= all.merge(crowns[['latin','polygon_id','geometry']], left_on='polygon_id',right_on='polygon_id', how='left')
+all_crowns['latin'] = all_crowns['latin_x'].combine_first(all_crowns['latin_y'])
+all_crowns['geometry'] = all_crowns['geometry_x'].combine_first(all_crowns['geometry_y'])
+all_crowns.drop(columns=['latin_x', 'latin_y','geometry_x','geometry_y'], inplace=True)
+
+sgbt_dataset = gpd.GeoDataFrame(all_crowns , geometry='geometry')
+sgbt_dataset.set_crs("EPSG:32617", allow_override=True, inplace=True)  
+
+#make sure the combined dataset has sound estimates in leafing
+print(sgbt_dataset['leafing'].describe())
+
+#one comes out for the sgbt dataset
+sgbt_dataset.to_file(r'timeseries/dataset_training/train.shp')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ##lets try to get prioria copaifera all flowering inividuals and the same amount of not leafing
 prioria_all = crowns_labeled_avg[crowns_labeled_avg['latin'] == "Prioria copaifera"]
@@ -335,14 +317,7 @@ sgbt_dataset= crowns_labeled_avg[['polygon_id','leafing','isFlowering']].merge(c
                                 right_on="polygon_id",
                                   how="left")
 
-sgbt_dataset = gpd.GeoDataFrame(sgbt_dataset, geometry='geometry')
-sgbt_dataset.set_crs("EPSG:32617", allow_override=True, inplace=True)  
 
-#make sure the combined dataset has sound estimates in leafing
-print(sgbt_dataset['leafing'].describe())
-
-#one comes out for the sgbt dataset
-sgbt_dataset.to_file(r'timeseries/dataset_training/train.shp')
 
 
 
