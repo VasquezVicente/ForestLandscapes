@@ -29,7 +29,12 @@ cavallinesia <- read.csv("C:/Users/VasquezV/repo/ForestLandscapes/timeseries/dat
 cavallinesia$date<-as.Date(cavallinesia$date, format= "%Y-%m-%d")
 cavallinesia$latin<- "Cavallinesia platanifolia"
 
-all<- bind_rows(ceiba,hura,dipteryx,jacaranda, cavallinesia)
+quararibea <- read.csv("C:/Users/VasquezV/repo/ForestLandscapes/timeseries/dataset_analysis/quararibea_analysis.csv")
+quararibea$date<-as.Date(quararibea$date, format= "%Y-%m-%d")
+quararibea$latin<- "Quararibea stenophylla"
+quararibea$isFlowering_predicted<- as.character(quararibea$isFlowering_predicted)
+
+all<- bind_rows(ceiba,hura,dipteryx,jacaranda, cavallinesia, quararibea)
 
 all$dayYear <- yday(all$date)
 
@@ -77,7 +82,6 @@ ggplot(all, aes(x = bin, y = leafing)) +
   geom_text(data = y_labels, aes(x = x, y = y, label = label), hjust = 1, size = 4, angle = 0)
 
 #ert tag to numeric (similar to pd.Categorical.codes)
-Leaf Coverage Patterns Across Tree Species , Radial boxplots show 7 years of leaf coverage data binned by month
 
 hura_clustered <- all %>%
   filter(break_type == "start_leaf_drop")%>%
@@ -106,9 +110,6 @@ hura_end<- hura_end%>%
   filter(leaf_drop_cluster!= 0)
 
 
-hura_mean%>%ggplot(aes(x = mean_date, y = GlobalID, color = factor(leaf_drop_cluster))) +  # color by group ID
-  geom_jitter(height = 0.1, alpha = 0.7, size = 2)
-
 #easy, if two break points belong to the same cluster we are going to average it
 base_date <- as.Date("2018-04-04")
 
@@ -125,6 +126,9 @@ hura_mean <- hura_clustered %>%
     sin_theta = sin(theta_rad),
     cos_theta = cos(theta_rad)
   )
+windows()
+hura_mean%>%ggplot(aes(x = mean_date, y = GlobalID, color = factor(leaf_drop_cluster))) +  # color by group ID
+  geom_jitter(height = 0.1, alpha = 0.7, size = 2)
 
 
 hura_end_mean <- hura_end%>% 
@@ -140,7 +144,7 @@ hura_end_mean <- hura_end%>%
     sin_theta = sin(theta_rad),
     cos_theta = cos(theta_rad)
   )
-
+windows()
 hura_end_mean%>%ggplot(aes(x = mean_date, y = GlobalID, color = factor(leaf_drop_cluster))) +  # color by group ID
   geom_jitter(height = 0.1, alpha = 0.7, size = 2)
 
@@ -170,6 +174,50 @@ fit_leafing <- bpnme(
   burn = 2000,
   n.lag = 5
 )
+print(fit_leafing)
+
+#visualize first component
+windows()
+traceplot(fit_leafing, "beta1")
+windows()
+traceplot(fit_leafing, "beta2")
+
+## you can print the full estimate table
+fit_leafing$circ.coef.cat    ##the difference two phenological years
+cat_tbl <- as_tibble(fit_leafing$circ.coef.cat, rownames = "term")
+View(cat_tbl)
+
+fit_leafing$circ.coef.means  ## the mean coefficients for each cluster
+coef_tbl <- as_tibble(fit_leafing$circ.coef.means, rownames = "term")
+View(coef_tbl)
+
+fit_leafing$circ.res.varrand  ## residual variance? The mean, mode, standard deviation and 95 random intercepts and slopes.
+varrand_tbl <- as_tibble(fit_leafing$circ.res.varrand, rownames = "term")
+View(varrand_tbl)
+
+
+circular_ri <- fit_leafing$circular.ri  # Matrix: individuals x iterations ## A vector of posterior samples for the circular random intercepts.
+
+# Calculate mean resultant length (MRL) across individuals for each iteration
+mrl_per_iteration <- apply(circular_ri, 2, function(theta) {
+  rho.circular(circular(theta, units = "radians"))
+})
+mean_cvar <- mean(1 - mrl_per_iteration)
+
+# Plot posterior density of circular variance
+ggplot(data.frame(cvar = 1 - mrl_per_iteration), aes(x = cvar)) +
+  geom_density(fill = "lightblue", alpha = 0.6) +
+  geom_vline(xintercept = quantile(1 - mrl_per_iteration, c(0.025, 0.975)), linetype = "dashed", color = "blue") +
+  geom_vline(xintercept = mean_cvar, color = "black") +
+  labs(title = "Posterior Distribution of Circular Random Intercept Variance",
+       x = "Circular Variance (1 - MRL)",
+       y = "Density") +
+  theme_minimal()
+
+
+
+
+
 
 fit_end <- bpnme(
   pred.I = theta_rad ~ leaf_drop_cluster + (1 | GlobalID_num),
@@ -179,32 +227,12 @@ fit_end <- bpnme(
   n.lag = 5
 )
 
-fit_leafing$circ.coef.cat
-fit_leafing$circ.coef.means
-fit_leafing$circ.res.varrand
+
 
 print(fit_leafing$circ.res.varrand)
 
 # Compare mean of 1 - mrl_per_iteration to circ.res.varrand mean for RI
-circular_ri <- fit_end$circular.ri  # Matrix: individuals x iterations
 
-# Calculate mean resultant length (MRL) across individuals for each iteration
-mrl_per_iteration <- apply(circular_ri, 2, function(theta) {
-  rho.circular(circular(theta, units = "radians"))
-})
-mean_cvar <- mean(1 - mrl_per_iteration)
-fit_end$circ.res.varrand["RI", "mean"]
-
-# Plot posterior density of circular variance
-library(ggplot2)
-ggplot(data.frame(cvar = 1 - mrl_per_iteration), aes(x = cvar)) +
-  geom_density(fill = "lightblue", alpha = 0.6) +
-  geom_vline(xintercept = quantile(1 - mrl_per_iteration, c(0.025, 0.975)), linetype = "dashed", color = "blue") +
-  geom_vline(xintercept = mean_cvar, color = "black") +
-  labs(title = "Posterior Distribution of Circular Random Intercept Variance",
-       x = "Circular Variance (1 - MRL)",
-       y = "Density") +
-  theme_minimal()
 
 coef_tbl <- as_tibble(fit_leafing$circ.coef.means, rownames = "term")
 coef_tbl_end <- as_tibble(fit_end$circ.coef.means, rownames = "term")
