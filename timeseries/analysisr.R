@@ -1,41 +1,36 @@
-library(dplyr)
-library(ggplot2)
-library(lubridate)
-library(dbscan)
-library(lme4)
-library(circular)
-
-ceiba <- read.csv("C:/Users/VasquezV/repo/ForestLandscapes/timeseries/dataset_analysis/ceiba_analysis.csv")
+library(pacman)
+p_load(dplyr, ggplot2, lubridate, dbscan, lme4, circular, bpnreg,tidyr, tidyverse)
+# Load the data
+ceiba <- read.csv("timeseries/dataset_analysis/ceiba_analysis.csv")
 ceiba$date<- as.Date(ceiba$date, format= "%Y-%m-%d")
 ceiba$latin<- "Ceiba pentandra"
 
-hura <- read.csv("C:/Users/VasquezV/repo/ForestLandscapes/timeseries/dataset_analysis/hura_analysis.csv")
+hura <- read.csv("timeseries/dataset_analysis/hura_analysis.csv")
 hura$date<-as.Date(hura$date, format= "%Y-%m-%d")
 hura$latin<- "Hura crepitans"
 
-dipteryx <- read.csv("C:/Users/VasquezV/repo/ForestLandscapes/timeseries/dataset_analysis/dipteryx_analysis.csv")
+dipteryx <- read.csv("timeseries/dataset_analysis/dipteryx_analysis.csv")
 dipteryx$date<-as.Date(dipteryx$date, format= "%Y-%m-%d")
 dipteryx$latin<- "Dipteryx oleifera"
 
-jacaranda <- read.csv("C:/Users/VasquezV/repo/ForestLandscapes/timeseries/dataset_analysis/jacaranda_analysis.csv")
+jacaranda <- read.csv("timeseries/dataset_analysis/jacaranda_analysis.csv")
 jacaranda$date<-as.Date(jacaranda$date, format= "%Y-%m-%d")
 jacaranda$latin<- "Jacaranda copaia"
 
-cavallinesia <- read.csv("C:/Users/VasquezV/repo/ForestLandscapes/timeseries/dataset_analysis/cavallinesia_analysis.csv")
+cavallinesia <- read.csv("timeseries/dataset_analysis/cavallinesia_analysis.csv")
 cavallinesia$date<-as.Date(cavallinesia$date, format= "%Y-%m-%d")
 cavallinesia$latin<- "Cavallinesia platanifolia"
 
-cavallinesia <- read.csv("C:/Users/VasquezV/repo/ForestLandscapes/timeseries/dataset_analysis/cavallinesia_analysis.csv")
+cavallinesia <- read.csv("timeseries/dataset_analysis/cavallinesia_analysis.csv")
 cavallinesia$date<-as.Date(cavallinesia$date, format= "%Y-%m-%d")
 cavallinesia$latin<- "Cavallinesia platanifolia"
 
-quararibea <- read.csv("C:/Users/VasquezV/repo/ForestLandscapes/timeseries/dataset_analysis/quararibea_analysis.csv")
+quararibea <- read.csv("timeseries/dataset_analysis/quararibea_analysis.csv")
 quararibea$date<-as.Date(quararibea$date, format= "%Y-%m-%d")
 quararibea$latin<- "Quararibea stenophylla"
 quararibea$isFlowering_predicted<- as.character(quararibea$isFlowering_predicted)
 
 all<- bind_rows(ceiba,hura,dipteryx,jacaranda, cavallinesia, quararibea)
-
 all$dayYear <- yday(all$date)
 
 #lets try a vonmisses distribution for the ceiba
@@ -63,6 +58,8 @@ y_labels <- data.frame(
   label = as.character(y_ticks)
 )
 
+all$bin
+
 ggplot(all, aes(x = bin, y = leafing)) +
   geom_boxplot(outlier.alpha = 0.1, fill = "Goldenrod", color = "black", width = 0.8) +
   coord_polar(start = 0, direction = 1) +
@@ -81,12 +78,251 @@ ggplot(all, aes(x = bin, y = leafing)) +
   )+
   geom_text(data = y_labels, aes(x = x, y = y, label = label), hjust = 1, size = 4, angle = 0)
 
-#ert tag to numeric (similar to pd.Categorical.codes)
 
+##focusing on Hura crepitans and start of leaf drop
 hura_clustered <- all %>%
   filter(break_type == "start_leaf_drop")%>%
   filter(latin=="Hura crepitans")
 
+
+#cluster the leaf drop breakpoints
+db <- dbscan::dbscan(as.matrix(hura_clustered$date_num), eps = 40, minPts = 10)
+hura_clustered$leaf_drop_cluster <- db$cluster
+
+##drop the noise breakpoints
+hura_clustered<- hura_clustered%>%
+  filter(leaf_drop_cluster!= 7)%>%
+  filter(leaf_drop_cluster!= 0)   ##hura has erroneous cluster==7
+
+
+#More than 2 breakpoint per phenological year should be average between them
+base_date <- as.Date("2018-04-04")
+hura_mean <- hura_clustered %>% 
+  group_by(GlobalID, leaf_drop_cluster) %>% 
+  summarise(
+    date_num_mean = mean(date_num, na.rm = TRUE),
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    mean_date  = as.Date(base_date + round(date_num_mean)),
+    year = as.integer(format(mean_date, "%Y")),
+    is_leap = (year %% 4 == 0 & year %% 100 != 0) | (year %% 400 == 0),
+    dayOfYear  = yday(mean_date),
+    days_in_year = ifelse(is_leap, 366, 365),
+    theta_rad = dayOfYear * 2 * pi / days_in_year,
+  )
+
+hura_mean$leaf_drop_cluster <- recode(hura_mean$leaf_drop_cluster,
+                                      `1` = "2019-2020",
+                                      `2` = "2020-2021",
+                                      `3` = "2021-2022",
+                                      `4` = "2022-2023",
+                                      `5` = "2023-2024",
+                                      `6` = "2018-2019")
+
+windows()
+hura_mean%>%ggplot(aes(x = mean_date, y = GlobalID, color = factor(leaf_drop_cluster))) +  # color by group ID
+  geom_jitter(height = 0.1, alpha = 0.7, size = 2)
+
+
+
+
+#to transform this shit to the linear space i need to find the min and max dates of all seasons
+# it is circular, we need to go to the ciruclar space
+
+hura_range <- hura_mean %>%
+  group_by(leaf_drop_cluster) %>%
+  summarise(
+    sorted_theta = list(sort(circular(theta_rad, units = "radians", modulo = "2pi"))),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    arc_bounds = map(sorted_theta, ~{
+      th <- as.numeric(.x)
+      diffs <- diff(c(th, th[1] + 2*pi))  # wraparound gap
+      gap_idx <- which.max(diffs)
+      min_theta <- th[(gap_idx %% length(th)) + 1]
+      max_theta <- th[gap_idx]
+      tibble(min_theta = min_theta, max_theta = max_theta)
+    })
+  ) %>%
+  unnest(arc_bounds) %>%
+  mutate(
+    min_DOY = round(min_theta / (2 * pi) * 365),
+    max_DOY = round(max_theta / (2 * pi) * 365),
+    min_DOY = ifelse(min_DOY == 0, 1, min_DOY),
+    max_DOY = ifelse(max_DOY == 0, 1, max_DOY)
+  )
+
+print(hura_range)
+mindate<-min(hura_range$min_DOY)-1  ## This is day 0
+maxdate<-max(hura_range$max_DOY)-1
+
+# Now we will transform each leaf drop cluster to the linear space
+hura_mean <- hura_mean %>%
+  mutate(
+    DOYlinear = ##every mean_date is days since mindate
+      ifelse(
+        dayOfYear < mindate,
+        dayOfYear + 365 - mindate,  # wrap around to the end of the year
+        dayOfYear - mindate
+      ))
+
+View(hura_mean)
+
+##good lets visualize DOYlinear per leaf drop cluster
+windows()
+ggplot(hura_mean, aes(x = DOYlinear, y = leaf_drop_cluster, color = factor(GlobalID))) +
+  geom_jitter(height = 0.1, alpha = 0.7, size = 2) +
+  labs(title = "Leaf Drop Clusters in Linear Space (Hura crepitans)",
+       x = "Days Since Minimum Date",
+       y = "GlobalID",
+       color = "Leaf Drop Cluster") +
+  theme_minimal(base_size = 14)+
+  theme(legend.position = "none")
+
+
+## now we can fit a linear to DOYlinear using a Bayesian approach
+
+library(brms)
+
+hura_mean$leaf_drop_cluster <- factor(hura_mean$leaf_drop_cluster)
+model <- brm(
+  DOYlinear ~ leaf_drop_cluster + (1 | GlobalID),
+  data = hura_mean,
+  family = gaussian(),
+  chains = 4,
+  iter = 2000,
+  cores = 4,
+  seed = 123
+)
+
+summary(model)
+
+
+fixed_table <- round(as.data.frame(fixef(model)), 2)
+windows(width = 10, height = 6)
+grid.table(fixed_table)
+
+ranef(model)
+random_table <- round(as.data.frame(ranef(model)$GlobalID), 2)
+View(random_table)
+windows(width = 10, height = 6)
+grid.table(random_table)
+
+library(gridExtra)
+re_sd <- as.data.frame(VarCorr(model))
+windows(width = 10, height = 6)
+grid.table(re_sd)
+
+windows()
+conditional_effects(model, effects = "leaf_drop_cluster")
+
+
+## model 2 aims to partition the variance of DOYlinear into two components: one for the leaf drop cluster and one for the GlobalID
+# This allows us to see how much of the variance in DOYlinear is explained by the
+model2 <- brm(
+  DOYlinear ~ 1 + (1 | leaf_drop_cluster) + (1 | GlobalID),
+  data = hura_mean,
+  family = gaussian(),
+  chains = 4,
+  iter = 2000,
+  cores = 4,
+  seed = 123
+)
+
+summary(model2)
+
+
+##pull the estimate of each random effect 
+# Use regular year breaks
+
+
+windows()
+mean_vectors <- hura_mean %>%
+  group_by(leaf_drop_cluster) %>%
+  summarise(
+    mean_length = rho.circular(circular(theta_rad, units = "radians", modulo = "2pi"), na.rm = TRUE),
+    mean_angle = mean(circular(theta_rad, units = "radians", modulo = "2pi"), na.rm = TRUE)
+  )
+ggplot() +
+  geom_point(data = hura_mean, 
+             aes(x = theta_rad, y = 1), 
+             size = 2, alpha = 0.6) +
+  geom_segment(data = mean_vectors,
+               aes(x = mean_angle, y = 0, xend = mean_angle, yend = mean_length), 
+               arrow = arrow(length = unit(0.2, "cm")), 
+               size = 1) +
+  coord_polar(start = 0, direction = 1) +
+  scale_x_continuous(
+    limits = c(0, 2 * pi),
+    breaks = 2 * pi * (cumsum(c(0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30)) + 15) / 365,
+    labels = month.abb
+  ) +
+  facet_wrap(~leaf_drop_cluster) +
+  theme_minimal() +
+  labs(x = NULL, y = NULL)+
+  labs(title = "Mean Day of Year and Mean Resultant Length (Hura crepitans)")
+
+
+
+
+library(bpnreg)
+hura_mean$GlobalID_num <- as.numeric(as.factor(hura_mean$GlobalID))
+fit_leafing <- bpnme(
+  pred.I = theta_rad ~ leaf_drop_cluster,,
+  data = hura_mean,
+  its = 10000,
+  burn = 2000,
+  n.lag = 5
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+fit_leafing$circ.coef.cat    ##the difference two phenological years
+cat_tbl <- as_tibble(fit_leafing$circ.coef.cat, rownames = "term")
+View(cat_tbl)
+
+cat_tbl$difDOY <- cat_tbl$mean * 365 / (2 * pi)
+View(cat_tbl)
+
+table2 <- cat_tbl[1:5, ]
+table2[ , 2:7] <- round(table2[ , 2:7], 2)  # Assuming columns 2 to 7 are numeric
+windows(width = 10, height = 6)
+grid.table(table2)
+
+
+
+install.packages("tidyverse")
 hura_end <- all %>%
   filter(break_type == "end_leaf_flush")%>%
   filter(latin=="Hura crepitans")
