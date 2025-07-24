@@ -8,7 +8,8 @@ import statsmodels.api as sm
 from scipy.signal import savgol_filter
 import seaborn as sns
 
-data= pd.read_csv(r"timeseries/dataset_extracted/quararibea.csv")
+data= pd.read_csv(r"timeseries/dataset_extracted/prioria.csv")
+
 data['latin']
 ##date wrangling
 data['date'] = pd.to_datetime(data['date'], format='%Y-%m-%d')
@@ -25,6 +26,7 @@ for tree in data['GlobalID'].unique():
     indv = data[data['GlobalID'] == tree]
     tagn= indv['tag'].unique()[0]
     plt.plot(indv['date'], indv['leafing'], label=f"Tree {tagn}", alpha=0.7)
+    
 plt.xlabel('Date')
 plt.ylabel('Leafing Predicted')
 plt.grid(True)
@@ -54,10 +56,8 @@ for tree in globalID:
     full_df['date_num'] = (full_df['date'] - full_df['date'].min()).dt.days
     full_df['year'] = full_df['date'].dt.year
     indv = pd.merge(full_df, indv, on=['date', 'date_num', 'year', 'dayYear'], how='left')
-
     indv['leafing'] = indv['leafing'].interpolate(method='linear')
     #lowess_smoothed = sm.nonparametric.lowess(indv['leafing_predicted'], indv['date_num'], frac=0.1)
-
     #plt.figure(figsize=(12, 6))
     #plt.scatter(indv['date_num'], indv['leafing_predicted'], alpha=0.5, label='Raw Data')
     #plt.plot(lowess_smoothed[:, 0], lowess_smoothed[:, 1], color='orange', linewidth=2, label='LOWESS Smoothed')
@@ -67,25 +67,21 @@ for tree in globalID:
     #plt.title('Leafing Predicted vs. Day of Year (LOWESS Smoothed)')
     #plt.legend()
     #plt.show()
-
     signal = indv['leafing'].values
     algo_python = rpt.Pelt(model="rbf",jump=1,min_size=15).fit(signal)
     penalty_value = 25
     bkps_python = algo_python.predict(pen=penalty_value)
-
-
-    #plt.figure(figsize=(12, 6))
-    #plt.scatter(indv['date_num'], indv['leafing'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
-    #plt.xlabel('Day of year')
-    #plt.ylabel('Leafing Predicted')
-    #plt.grid(True)
-    #plt.title('Leafing Predicted vs Day of Year')
-    #plt.legend()
-    #plt.colorbar(label='Year')
-    #for bp in bkps_python:
-    #    plt.axvline(x=bp, color='red', linestyle='--', linewidth=2)
-    #plt.show()
-
+    plt.figure(figsize=(12, 6))
+    plt.scatter(indv['date_num'], indv['leafing'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
+    plt.xlabel('Day of year')
+    plt.ylabel('Leafing Predicted')
+    plt.grid(True)
+    plt.title('Leafing Predicted vs Day of Year')
+    plt.legend()
+    plt.colorbar(label='Year')
+    for bp in bkps_python:
+        plt.axvline(x=bp, color='red', linestyle='--', linewidth=2)
+    plt.show()
     indv['breakpoint'] = False
     indv.loc[indv['date_num'].isin(bkps_python), 'breakpoint'] = True
     indv['GlobalID'] = tree

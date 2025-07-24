@@ -18,7 +18,7 @@ from rasterio.mask import mask
 from statistics import mode
 from PIL import Image
 
-data= pd.read_csv(r"timeseries/dataset_predictions/quararibea_sgbt.csv")
+data= pd.read_csv(r"timeseries/dataset_predictions/prioria_sgbt.csv")
 data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
 path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")
 path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
@@ -29,8 +29,8 @@ crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
 
 with open(r'timeseries/models/xgb_model.pkl', 'rb') as file:
       model = pickle.load(file)
-with open(r'timeseries/models/xgb_model_flower.pkl', 'rb') as file:
-      model_flower = pickle.load(file)
+#with open(r'timeseries/models/xgb_model_flower.pkl', 'rb') as file:
+#      model_flower = pickle.load(file)
 
 X=data[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'shadowM','rSD', 'gSD', 'bSD',
        'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD','entropy','elevSD']]
@@ -39,11 +39,11 @@ Y= data[['area', 'score', 'tag', 'GlobalID', 'iou',
        'date', 'latin', 'polygon_id']]
 
 X_predicted=model.predict(X)
-X_predict_flower= model_flower.predict(X)
+#X_predict_flower= model_flower.predict(X)
 
 df_final = Y.copy()  # Copy Y to keep the same structure
 df_final['leafing_predicted'] = X_predicted
-df_final['isFlowering_predicted'] = X_predict_flower
+#df_final['isFlowering_predicted'] = X_predict_flower
 
 
 #lets bring in the actual labels to clean it up
@@ -85,5 +85,5 @@ merged_final['date_num']= (merged_final['date'] -merged_final['date'].min()).dt.
 
 
 
-merged_final.to_csv(r"timeseries/dataset_extracted/quararibea.csv")
+merged_final.to_csv(r"timeseries/dataset_extracted/prioria.csv")
 
