@@ -28,7 +28,7 @@ crowns=gpd.read_file(path_crowns)
 crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
 
 
-species_subset= crowns[crowns['latin']=='Prioria copaifera'].reset_index()
+species_subset= crowns[crowns['latin']=='Cecropia insignis'].reset_index()
 
 pixel_unmixing=gpd.read_file(os.path.join(data_path,'aux_files/pixel_unmixing.shp'))
 gv_pixels = []  # For GV (Green Vegetation)
@@ -162,4 +162,4 @@ for orthomosaic in list_ortho:
 
 
 species_subset=species_subset.drop(columns=['geometry'])
-species_subset.to_csv(r"timeseries/dataset_predictions/prioria_sgbt.csv")
+species_subset.to_csv(r"timeseries/dataset_predictions/cecropia_sgbt.csv")

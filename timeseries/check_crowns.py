@@ -28,7 +28,7 @@ from statistics import mode
 from skimage.feature import graycomatrix, graycoprops
 from skimage import img_as_ubyte
 #load hura extracted
-path= r"timeseries\dataset_extracted\jacaranda.csv"
+path= r"timeseries\dataset_extracted\hura.csv"
 hura= pd.read_csv(path)
 
 #load polygons
@@ -116,13 +116,17 @@ def generate_leafing_pdf(unique_leafing_rows, output_pdf, orthomosaic_path, crow
     print(f"PDF saved: {output_pdf}")
 
 
-out_huras= r"plots/jacaranda"
+out_huras= r"//stri-sm01/ForestLandscapes/UAVSHARE/BCI_50ha_timeseries/videos/huras"
 ortho_path= os.path.join(data_path, 'orthomosaic_aligned_local')
             
-os.mkdir(out_huras)
+
 for i in individuals:
     sub_indv= species_subset[species_subset['GlobalID']==i]
     sub_indv['date'] = sub_indv['date'].astype(str).str.replace("-", "_")
+    
     out_path = os.path.join(out_huras, f"{i}.pdf")
-    generate_leafing_pdf(sub_indv,out_path, ortho_path,crowns_per_page=12,variables=["leafing","date"])
-    print("finish one")
+    if not os.path.exists(out_path):
+        generate_leafing_pdf(sub_indv,out_path, ortho_path,crowns_per_page=12,variables=["leafing","date"])
+        print("finish one")
+    else:
+        print("already exist")
