@@ -2,86 +2,39 @@ import os
 import pandas as pd
 import geopandas as gpd
 import rasterio
-from shapely import box
-import matplotlib.pyplot as plt
-import shapely
-import numpy as np
-from skimage.filters.rank import entropy
-import pickle
 from rasterio.mask import mask
-import matplotlib.patches as patches
+import numpy as np
+import shapely
+from skimage.filters.rank import entropy
 from shapely.affinity import affine_transform
-from matplotlib.backends.backend_pdf import PdfPages
 from skimage.feature import graycomatrix, graycoprops
 from skimage import img_as_ubyte
 from skimage.morphology import disk
-import sys
-import warnings
-from utils import calculate_glcm_features
+from timeseries.utils import calculate_glcm_features
 
 
 #load polygons
-data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
-path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")
-path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
-crowns=gpd.read_file(path_crowns)
-crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
+data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"                 ## path to the data folder
+path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")                         ## orthomosaics locally aligned location 
+path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")  ## location of the timeseries of polygons
+crowns=gpd.read_file(path_crowns)                                                      ## read the file using geopandas
+crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")       ## polygon ID defines the identity of tree plus date it was taken
 
+species_subset= crowns[crowns['latin']=='Chrysophyllum cainito'].reset_index()         ## geodataframe to be used as template to extract features
 
-species_subset= crowns[crowns['latin']=='Cecropia insignis'].reset_index()
-
-pixel_unmixing=gpd.read_file(os.path.join(data_path,'aux_files/pixel_unmixing.shp'))
-gv_pixels = []  # For GV (Green Vegetation)
-npv_pixels = []  # For NPV (Non-photosynthetic Vegetation)
-shadow_pixels =[]  # for shadows
-
-for i, (_, row) in enumerate(pixel_unmixing.iterrows()):
-    path_orthomosaic = os.path.join(data_path,'orthomosaic_aligned_local',row['filename'])
-    with rasterio.open(path_orthomosaic) as src:
-        out_image, out_transform = mask(src, [row.geometry], crop=True)
-        red = out_image[0]  # Band 1 (Red)
-        green = out_image[1]  # Band 2 (Green)
-        blue = out_image[2]  # Band 3 (Blue)
-        red= np.where(red==0, np.nan, red)
-        green= np.where(green==0, np.nan, green)
-        blue= np.where(blue==0, np.nan, blue)
-        if row['endpoint']== 'pv':
-            gv_pixels.append(np.stack([red.flatten(), green.flatten(), blue.flatten()], axis=1))
-        elif row['endpoint']== 'npv':
-            npv_pixels.append(np.stack([red.flatten(), green.flatten(), blue.flatten()], axis=1))
-        elif row['endpoint']== 'shadow':
-            shadow_pixels.append(np.stack([red.flatten(), green.flatten(), blue.flatten()], axis=1))
-
-
-gv_pixels = np.vstack(gv_pixels)
-gv_pixels_clean = gv_pixels[~np.isnan(gv_pixels)]
-gv_endmember = np.nanmean(gv_pixels, axis=0)
-
-npv_pixels = np.vstack(npv_pixels)
-npv_pixels_clean = npv_pixels[~np.isnan(npv_pixels)]
-npv_endmember = np.nanmean(npv_pixels, axis=0)
-
-shadow_pixels = np.vstack(shadow_pixels)
-shadow_pixels_clean = shadow_pixels[~np.isnan(shadow_pixels)]
-shadow_endmember = np.nanmean(shadow_pixels, axis=0)
-
-
-#stack the endmembers
-A = np.vstack([gv_endmember, npv_endmember,shadow_endmember]).T 
-A_inv = np.linalg.pinv(A)
-A_inv.shape
-
+A_inv=np.array([[ 0.00174702,  0.01227676, -0.01372143],   #green vegetation endpoint 
+                [ 0.02120641, -0.02059761,  0.00372091],   #non green vegetation endpoint 
+                [-0.08542822,  0.06046723,  0.02937261]])  #shadow vegetation endpoint 
 
 #angles for covariance matrix
 window_size = 5  # 5x5 window
 angles = [0, 45, 90, 135]  # Azimuths in degrees
 
-
-species_subset[species_subset['date'].isna()]
 #extract the features, crown based
 counter=0
 list_ortho = [f for f in os.listdir(os.path.join(data_path, 'orthomosaic_aligned_local')) 
               if f.endswith('.tif') and not f.endswith('.tif.ovr')]
+
 for orthomosaic in list_ortho:
     print(f"Processing orthomosaic: ", orthomosaic)
     date = "_".join(orthomosaic.split("_")[2:5])
@@ -108,6 +61,7 @@ for orthomosaic in list_ortho:
 
             #this is for nvp and gv
             image_data = np.stack([red.flatten(), green.flatten(), blue.flatten()], axis=1)
+
             surface_fractions = np.dot(image_data, A_inv.T)
             gv_fraction = surface_fractions[:, 0].reshape(out_image.shape[1], out_image.shape[2])
             npv_fraction = surface_fractions[:, 1].reshape(out_image.shape[1], out_image.shape[2])
@@ -162,4 +116,4 @@ for orthomosaic in list_ortho:
 
 
 species_subset=species_subset.drop(columns=['geometry'])
-species_subset.to_csv(r"timeseries/dataset_predictions/cecropia_sgbt.csv")
+species_subset.to_csv(r"timeseries/dataset_predictions/cainito_sgbt.csv")

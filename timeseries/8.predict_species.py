@@ -1,44 +1,35 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import UnivariateSpline
 import pandas as pd
 import pickle
-import ruptures as rpt
-import statsmodels.api as sm
-from scipy.signal import savgol_filter
-import seaborn as sns
 import geopandas as gpd
 import os
 import geopandas as gpd
-from timeseries.utils import generate_leafing_pdf, customFlowering, customLeafing, customFloweringNumeric
-import rasterio
-from shapely import box
 import shapely
 from rasterio.mask import mask
-from statistics import mode
-from PIL import Image
 
-data= pd.read_csv(r"timeseries/dataset_predictions/prioria_sgbt.csv")
-data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"
-path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")
-path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")
-orthomosaic_path=os.path.join(data_path,"orthomosaic_aligned_local")
-orthomosaic_list=os.listdir(orthomosaic_path)
-crowns=gpd.read_file(path_crowns)
-crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
+
+data= pd.read_csv(r"timeseries/dataset_predictions/cecropia_sgbt.csv")    ##contains the sgbt features
+data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"    #Not needed
+path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")            #Not needed
+path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp") #Not needed
+orthomosaic_path=os.path.join(data_path,"orthomosaic_aligned_local")   #Not needed
+orthomosaic_list=os.listdir(orthomosaic_path) #Not needed
+crowns=gpd.read_file(path_crowns) #Not needed
+crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")  #Not needed
 
 with open(r'timeseries/models/xgb_model.pkl', 'rb') as file:
       model = pickle.load(file)
 #with open(r'timeseries/models/xgb_model_flower.pkl', 'rb') as file:
 #      model_flower = pickle.load(file)
 
-X=data[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'shadowM','rSD', 'gSD', 'bSD',
+X=data[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'shadowM','rSD', 'gSD', 'bSD',     #features for prediction
        'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD','entropy','elevSD']]
 
-Y= data[['area', 'score', 'tag', 'GlobalID', 'iou',
+Y= data[['area', 'score', 'tag', 'GlobalID', 'iou',                                        #identifiers
        'date', 'latin', 'polygon_id']]
 
-X_predicted=model.predict(X)
+X_predicted=model.predict(X)                                                      #predictions
 #X_predict_flower= model_flower.predict(X)
 
 df_final = Y.copy()  # Copy Y to keep the same structure
