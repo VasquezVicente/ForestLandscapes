@@ -1,4 +1,57 @@
 import os
+import Metashape
+import geopandas as gpd
+import pandas as pd
+
+directory_path = r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\yasuni"
+tile_folders = [name for name in os.listdir(directory_path)
+                if os.path.isdir(os.path.join(directory_path, name)) and name.startswith("tile")]
+
+
+jpg_files = []
+
+for folder in tile_folders:
+    folder_path = os.path.join(directory_path, folder)
+    for root, dirs, files in os.walk(folder_path):
+        for file in files:
+            if file.lower().endswith('.jpg'):
+                jpg_files.append(os.path.join(root, file))
+
+
+df = pd.DataFrame(jpg_files, columns=['path'])
+df['tile'] = df['path'].str.split('\\').str[-3]
+df['filename'] = df['path'].str.split('\\').str[-1]
+df['polygon_id'] = df['filename'].str.extract(r'_V_(\d+)', expand=False)
+df['is_zoom'] = df['filename'].str.contains('zoom', case=False)
+
+df= df[df['is_zoom']==True]
+
+doc= Metashape.Document()
+chunk = doc.addChunk()
+chunk.addPhotos(tuple(df['path'].tolist()))
+
+chunk.exportReference(
+    r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\yasuni\yasuni_zoom_reference.txt",
+    delimiter=','
+)
+
+yasuni_zoom_reference = pd.read_csv(r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\yasuni\yasuni_zoom_reference.txt", delimiter=',', skiprows=1)
+
+from shapely.geometry import Point
+
+#columns are "X/Longitude", "Y/Latitude" create a geometry column
+yasuni_zoom_reference['geometry'] = yasuni_zoom_reference.apply(
+    lambda row: Point(row['X/Longitude'], row['Y/Latitude']), axis=1
+)
+
+yasuni_zoom_reference = gpd.GeoDataFrame(yasuni_zoom_reference, geometry='geometry', crs='EPSG:4326')
+
+df_out= yasuni_zoom_reference[['#Label', 'X/Longitude', 'Y/Latitude', 'Z/Altitude', 'geometry']].merge(df,left_on='#Label', right_on='filename', how='left')
+df_out=gpd.GeoDataFrame(df_out, geometry='geometry', crs='EPSG:4326')
+
+df_out.to_file(r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\yasuni\yasuni_zoom_reference.shp", driver='ESRI Shapefile')
+
+
 import labelbox
 import pandas as pd
 from labelbox import Option, Classification
