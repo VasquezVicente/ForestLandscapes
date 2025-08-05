@@ -8,7 +8,7 @@ import statsmodels.api as sm
 from scipy.signal import savgol_filter
 import seaborn as sns
 
-data= pd.read_csv(r"timeseries/dataset_extracted/prioria.csv")
+data= pd.read_csv(r"timeseries/dataset_extracted/hura.csv")
 
 data['latin']
 ##date wrangling
@@ -22,6 +22,7 @@ data['date_num']= (data['date'] -data['date'].min()).dt.days
 globalID= data['GlobalID'].unique()
 len(globalID)
 plt.figure(figsize=(20, 6))
+
 for tree in data['GlobalID'].unique():
     indv = data[data['GlobalID'] == tree]
     tagn= indv['tag'].unique()[0]
@@ -46,6 +47,34 @@ plt.grid(True)
 plt.title('Leafing Predicted vs Day of Year with Trend Line')
 plt.show()
 
+all_df = []
+counter = 1  # Initialize counter
+
+for tree in globalID:
+    indv = data[data['GlobalID'] == tree]
+    full_date_range = pd.date_range(start=data['date'].min(), end=data['date'].max(), freq='D')
+    full_df = pd.DataFrame({'date': full_date_range})
+    full_df['dayYear'] = full_df['date'].dt.dayofyear
+    full_df['date_num'] = (full_df['date'] - full_df['date'].min()).dt.days
+    full_df['year'] = full_df['date'].dt.year
+    indv = pd.merge(full_df, indv, on=['date', 'date_num', 'year', 'dayYear'], how='left')
+    indv['leafing'] = indv['leafing'].interpolate(method='linear')
+
+    # Breakpoint detection
+    signal = indv['leafing'].values
+    algo_python = rpt.Pelt(model="rbf", jump=1, min_size=20).fit(signal)
+    penalty_value = 30  # 35 for hura
+    bkps_python = algo_python.predict(pen=penalty_value)
+
+    indv['breakpoint'] = False
+    indv.loc[indv['date_num'].isin(bkps_python), 'breakpoint'] = True
+    indv['GlobalID'] = tree
+    all_df.append(indv)
+
+    print(f"{counter} done: {tree}")
+    counter += 1  # Increment counter
+
+
 
 all_df = []
 for tree in globalID:
@@ -57,31 +86,25 @@ for tree in globalID:
     full_df['year'] = full_df['date'].dt.year
     indv = pd.merge(full_df, indv, on=['date', 'date_num', 'year', 'dayYear'], how='left')
     indv['leafing'] = indv['leafing'].interpolate(method='linear')
-    #lowess_smoothed = sm.nonparametric.lowess(indv['leafing_predicted'], indv['date_num'], frac=0.1)
+
+    ##breakpoint detection
+    signal = indv['leafing'].values
+    algo_python = rpt.Pelt(model="rbf",jump=1,min_size=20).fit(signal)
+    penalty_value = 30 ## 35 for hura
+    bkps_python = algo_python.predict(pen=penalty_value)
+
     #plt.figure(figsize=(12, 6))
-    #plt.scatter(indv['date_num'], indv['leafing_predicted'], alpha=0.5, label='Raw Data')
-    #plt.plot(lowess_smoothed[:, 0], lowess_smoothed[:, 1], color='orange', linewidth=2, label='LOWESS Smoothed')
-    #plt.xlabel('Day of Year')
+    #plt.scatter(indv['date_num'], indv['leafing'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
+    #plt.xlabel('Day of year')
     #plt.ylabel('Leafing Predicted')
     #plt.grid(True)
-    #plt.title('Leafing Predicted vs. Day of Year (LOWESS Smoothed)')
+    #plt.title(tree)
     #plt.legend()
+    #plt.colorbar(label='Year')
+    #for bp in bkps_python:
+    #    plt.axvline(x=bp, color='red', linestyle='--', linewidth=2)
     #plt.show()
-    signal = indv['leafing'].values
-    algo_python = rpt.Pelt(model="rbf",jump=1,min_size=15).fit(signal)
-    penalty_value = 25
-    bkps_python = algo_python.predict(pen=penalty_value)
-    plt.figure(figsize=(12, 6))
-    plt.scatter(indv['date_num'], indv['leafing'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
-    plt.xlabel('Day of year')
-    plt.ylabel('Leafing Predicted')
-    plt.grid(True)
-    plt.title('Leafing Predicted vs Day of Year')
-    plt.legend()
-    plt.colorbar(label='Year')
-    for bp in bkps_python:
-        plt.axvline(x=bp, color='red', linestyle='--', linewidth=2)
-    plt.show()
+    #print(tree)
     indv['breakpoint'] = False
     indv.loc[indv['date_num'].isin(bkps_python), 'breakpoint'] = True
     indv['GlobalID'] = tree
@@ -93,7 +116,6 @@ for tree in globalID:
 out_df = pd.concat(all_df, ignore_index=True)
 out_df['GlobalID']
 
-break_group= out_df[out_df['breakpoint']==True]
 
 def calculate_slope(x_values, y_values):
     slope = (y_values[-1] - y_values[0]) / (x_values[-1] - x_values[0])
@@ -141,5 +163,5 @@ for tree in globalID:
 out_df_2 = pd.concat(all_classified, ignore_index=True)
 len(out_df_2['GlobalID'].unique())
 
-out_df_2.to_csv(r'timeseries/dataset_analysis/quararibea_analysis.csv')
+out_df_2.to_csv(r'timeseries/dataset_analysis/hura_analysis.csv')
 
