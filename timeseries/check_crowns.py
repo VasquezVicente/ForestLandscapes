@@ -1,34 +1,14 @@
 import os
 import geopandas as gpd
-import shapely
 import rasterio
 import pandas as pd
-#timeseries functions
-import rasterio
 from rasterio.mask import mask
-import os
-import shapely
-import geopandas as gpd
-import numpy as np
 import matplotlib.pyplot as plt
 from shapely.geometry import box
-import matplotlib.patches as patches
-from shapely.affinity import affine_transform
 from matplotlib.backends.backend_pdf import PdfPages
-import pandas as pd
-import numpy as np
-import os
-import rasterio
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-from rasterio.mask import mask
-from shapely.geometry import box
 import shapely.ops
-from statistics import mode
-from skimage.feature import graycomatrix, graycoprops
-from skimage import img_as_ubyte
 #load hura extracted
-path= r"timeseries\dataset_extracted\hura.csv"
+path= r"timeseries\dataset_extracted\alseis.csv"
 hura= pd.read_csv(path)
 
 #load polygons
@@ -41,7 +21,6 @@ crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")
 
 
 species_subset=crowns[['geometry', 'polygon_id']].merge(hura, how='left', right_on='polygon_id', left_on='polygon_id')
-
 individuals = species_subset['GlobalID'].dropna().unique()
 
 
@@ -116,7 +95,8 @@ def generate_leafing_pdf(unique_leafing_rows, output_pdf, orthomosaic_path, crow
     print(f"PDF saved: {output_pdf}")
 
 
-out_huras= r"//stri-sm01/ForestLandscapes/UAVSHARE/BCI_50ha_timeseries/videos/huras"
+out_huras= r"//stri-sm01/ForestLandscapes/UAVSHARE/BCI_50ha_timeseries/videos/alseis"
+os.makedirs(out_huras, exist_ok=True)
 ortho_path= os.path.join(data_path, 'orthomosaic_aligned_local')
             
 

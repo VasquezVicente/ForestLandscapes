@@ -1,15 +1,9 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
-import pickle
-import geopandas as gpd
 import os
 import geopandas as gpd
-import shapely
-from rasterio.mask import mask
+import pickle
 
-
-data= pd.read_csv(r"timeseries/dataset_predictions/cecropia_sgbt.csv")    ##contains the sgbt features
+data= pd.read_csv(r"timeseries/dataset_predictions/quararibea_sgbt.csv")    ##contains the sgbt features
 data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"    #Not needed
 path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")            #Not needed
 path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp") #Not needed
@@ -76,5 +70,5 @@ merged_final['date_num']= (merged_final['date'] -merged_final['date'].min()).dt.
 
 
 
-merged_final.to_csv(r"timeseries/dataset_extracted/prioria.csv")
+merged_final.to_csv(r"timeseries/dataset_extracted/quararibea.csv")
 

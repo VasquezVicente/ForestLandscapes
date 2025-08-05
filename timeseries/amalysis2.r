@@ -56,6 +56,8 @@ hura_bad<-c("afbda3c3-9e08-40c8-a682-d6c87c4dd38a","cd5e49bb-fab1-41b0-ab35-74fb
            "abf712a6-4086-4090-8433-0ea8986fc980"
            )
 
+alseis_bad<- c("a9fbce15-5d86-432a-93a4-9ee6f0bfb19e","ad86904d-84dd-4a1b-9030-d63c1ca03ef4")
+
 quara_bad<- c()
 
 hura_filter<-all %>% filter(latin==sp & !GlobalID %in% hura_bad )

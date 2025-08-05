@@ -8,9 +8,8 @@ import statsmodels.api as sm
 from scipy.signal import savgol_filter
 import seaborn as sns
 
-data= pd.read_csv(r"timeseries/dataset_extracted/hura.csv")
+data= pd.read_csv(r"timeseries/dataset_extracted/alseis.csv")
 
-data['latin']
 ##date wrangling
 data['date'] = pd.to_datetime(data['date'], format='%Y-%m-%d')
 data['dayYear'] = data['date'].dt.dayofyear
@@ -47,35 +46,7 @@ plt.grid(True)
 plt.title('Leafing Predicted vs Day of Year with Trend Line')
 plt.show()
 
-all_df = []
 counter = 1  # Initialize counter
-
-for tree in globalID:
-    indv = data[data['GlobalID'] == tree]
-    full_date_range = pd.date_range(start=data['date'].min(), end=data['date'].max(), freq='D')
-    full_df = pd.DataFrame({'date': full_date_range})
-    full_df['dayYear'] = full_df['date'].dt.dayofyear
-    full_df['date_num'] = (full_df['date'] - full_df['date'].min()).dt.days
-    full_df['year'] = full_df['date'].dt.year
-    indv = pd.merge(full_df, indv, on=['date', 'date_num', 'year', 'dayYear'], how='left')
-    indv['leafing'] = indv['leafing'].interpolate(method='linear')
-
-    # Breakpoint detection
-    signal = indv['leafing'].values
-    algo_python = rpt.Pelt(model="rbf", jump=1, min_size=20).fit(signal)
-    penalty_value = 30  # 35 for hura
-    bkps_python = algo_python.predict(pen=penalty_value)
-
-    indv['breakpoint'] = False
-    indv.loc[indv['date_num'].isin(bkps_python), 'breakpoint'] = True
-    indv['GlobalID'] = tree
-    all_df.append(indv)
-
-    print(f"{counter} done: {tree}")
-    counter += 1  # Increment counter
-
-
-
 all_df = []
 for tree in globalID:
     indv = data[data['GlobalID'] == tree]
@@ -93,18 +64,18 @@ for tree in globalID:
     penalty_value = 30 ## 35 for hura
     bkps_python = algo_python.predict(pen=penalty_value)
 
-    #plt.figure(figsize=(12, 6))
-    #plt.scatter(indv['date_num'], indv['leafing'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
-    #plt.xlabel('Day of year')
-    #plt.ylabel('Leafing Predicted')
-    #plt.grid(True)
-    #plt.title(tree)
-    #plt.legend()
-    #plt.colorbar(label='Year')
-    #for bp in bkps_python:
-    #    plt.axvline(x=bp, color='red', linestyle='--', linewidth=2)
-    #plt.show()
-    #print(tree)
+    plt.figure(figsize=(12, 6))
+    plt.scatter(indv['date_num'], indv['leafing'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
+    plt.xlabel('Day of year')
+    plt.ylabel('Leafing Predicted')
+    plt.grid(True)
+    plt.title(tree)
+    plt.legend()
+    plt.colorbar(label='Year')
+    for bp in bkps_python:
+        plt.axvline(x=bp, color='red', linestyle='--', linewidth=2)
+    plt.show()
+    print(tree)
     indv['breakpoint'] = False
     indv.loc[indv['date_num'].isin(bkps_python), 'breakpoint'] = True
     indv['GlobalID'] = tree

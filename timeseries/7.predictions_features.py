@@ -19,8 +19,12 @@ path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")                  
 path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")  ## location of the timeseries of polygons
 crowns=gpd.read_file(path_crowns)                                                      ## read the file using geopandas
 crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")       ## polygon ID defines the identity of tree plus date it was taken
-
 species_subset= crowns[crowns['latin']=='Chrysophyllum cainito'].reset_index()         ## geodataframe to be used as template to extract features
+
+## adding analysis of shape and size of the crowns
+
+
+
 
 A_inv=np.array([[ 0.00174702,  0.01227676, -0.01372143],   #green vegetation endpoint 
                 [ 0.02120641, -0.02059761,  0.00372091],   #non green vegetation endpoint 
