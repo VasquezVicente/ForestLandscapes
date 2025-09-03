@@ -1,6 +1,4 @@
 {
     "python.REPL.enableREPLSmartSend": false,
-    "python-envs.defaultEnvManager": "ms-python.python:system",
-    "python-envs.defaultPackageManager": "ms-python.python:pip",
-    "python-envs.pythonProjects": []
+    "r.lsp.promptToInstall": false
 }
