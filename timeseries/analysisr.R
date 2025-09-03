@@ -21,10 +21,6 @@ cavallinesia <- read.csv("timeseries/dataset_analysis/cavallinesia_analysis.csv"
 cavallinesia$date<-as.Date(cavallinesia$date, format= "%Y-%m-%d")
 cavallinesia$latin<- "Cavallinesia platanifolia"
 
-cavallinesia <- read.csv("timeseries/dataset_analysis/cavallinesia_analysis.csv")
-cavallinesia$date<-as.Date(cavallinesia$date, format= "%Y-%m-%d")
-cavallinesia$latin<- "Cavallinesia platanifolia"
-
 quararibea <- read.csv("timeseries/dataset_analysis/quararibea_analysis.csv")
 quararibea$date<-as.Date(quararibea$date, format= "%Y-%m-%d")
 quararibea$latin<- "Quararibea stenophylla"
@@ -58,7 +54,6 @@ y_labels <- data.frame(
   label = as.character(y_ticks)
 )
 
-all$bin
 
 ggplot(all, aes(x = bin, y = leafing)) +
   geom_boxplot(outlier.alpha = 0.1, fill = "Goldenrod", color = "black", width = 0.8) +
@@ -82,12 +77,15 @@ ggplot(all, aes(x = bin, y = leafing)) +
 ##focusing on Hura crepitans and start of leaf drop
 hura_clustered <- all %>%
   filter(break_type == "start_leaf_drop")%>%
-  filter(latin=="Hura crepitans")
-
-
+  filter(latin=="Ceiba pentandra")
 #cluster the leaf drop breakpoints
 db <- dbscan::dbscan(as.matrix(hura_clustered$date_num), eps = 40, minPts = 10)
 hura_clustered$leaf_drop_cluster <- db$cluster
+
+windows()
+hura_clustered%>%ggplot(aes(x = date, y = GlobalID, color = factor(leaf_drop_cluster))) +  # color by group ID
+  geom_jitter(height = 0.1, alpha = 0.7, size = 2)
+
 
 ##drop the noise breakpoints
 hura_clustered<- hura_clustered%>%

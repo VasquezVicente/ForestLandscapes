@@ -8,12 +8,15 @@ import shapely
 from skimage.filters.rank import entropy
 from shapely.affinity import affine_transform
 from skimage.feature import graycomatrix, graycoprops
-from skimage import img_as_ubyte
 from skimage.morphology import disk
 from timeseries.utils import calculate_glcm_features
-
+from timeseries.utils import create_consensus_polygon
+from timeseries.utils import create_overlap_density_map
+from timeseries.utils import generate_leafing_pdf
+import matplotlib.pyplot as plt
 
 #load polygons
+
 data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"                 ## path to the data folder
 path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")                         ## orthomosaics locally aligned location 
 path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")  ## location of the timeseries of polygons
@@ -21,11 +24,7 @@ crowns=gpd.read_file(path_crowns)                                               
 crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")       ## polygon ID defines the identity of tree plus date it was taken
 species_subset= crowns[crowns['latin']=='Chrysophyllum cainito'].reset_index()         ## geodataframe to be used as template to extract features
 
-## adding analysis of shape and size of the crowns
-
-
-
-
+## adding analysis of shape and size of the crown
 A_inv=np.array([[ 0.00174702,  0.01227676, -0.01372143],   #green vegetation endpoint 
                 [ 0.02120641, -0.02059761,  0.00372091],   #non green vegetation endpoint 
                 [-0.08542822,  0.06046723,  0.02937261]])  #shadow vegetation endpoint 

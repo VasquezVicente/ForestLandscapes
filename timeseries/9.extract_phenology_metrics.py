@@ -7,8 +7,70 @@ import ruptures as rpt
 import statsmodels.api as sm
 from scipy.signal import savgol_filter
 import seaborn as sns
+from timeseries.utils import create_consensus_polygon
+from timeseries.utils import create_overlap_density_map
+import os
+import geopandas as gpd
 
-data= pd.read_csv(r"timeseries/dataset_extracted/alseis.csv")
+path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"                 ## path to the data folder
+path_crowns=os.path.join(path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")  ## location of the timeseries of polygons
+crowns=gpd.read_file(path_crowns)                                                      ## read the file using geopandas
+species_subset= crowns[crowns['latin']=='Ceiba pentandra'].reset_index()         ## geodataframe to be used as template to extract features
+
+unique_globalids = species_subset['GlobalID'].unique()
+all_gid_polygons = []
+for gid in unique_globalids:
+    subset = species_subset[species_subset['GlobalID'] == gid]
+    grid_size = 0.1
+    x_coords, y_coords, density_matrix = create_overlap_density_map(subset, grid_size=grid_size)
+    consensus_polygon = create_consensus_polygon(x_coords, y_coords, density_matrix)
+
+    for idx, row in subset.iterrows():
+            poly = row['geometry']
+            distance = poly.hausdorff_distance(consensus_polygon)
+            subset.loc[idx, 'hausdorff_distance'] = distance
+            print(f"Polygon has Hausdorff distance: {distance:.2f}")
+    
+    distances = subset['hausdorff_distance']
+    mean_distance = distances.mean()
+    std_distance = distances.std()
+    all_gid_polygons.append(subset)
+
+    #this now plots correctly aligned
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    # extent = [subset.total_bounds[0], subset.total_bounds[2], subset.total_bounds[1], subset.total_bounds[3]]
+    # im = ax.imshow(density_matrix, extent=extent, origin='lower', cmap='hot', alpha=0.7)
+    # subset['geometry'].plot(ax=ax, edgecolor='white', facecolor='none', alpha=0.8, linewidth=1)
+    # #plot concensus polygon if it exists
+    # if consensus_polygon is not None:
+    #     gpd.GeoSeries(consensus_polygon).plot(ax=ax, edgecolor='blue', facecolor='none', linewidth=2)
+    # plt.colorbar(im, ax=ax, label='Overlap Count')
+    # plt.title(f"Density Map with Polygons - {gid}")
+    # plt.suptitle(f"Mean Hausdorff Distance: {mean_distance:.2f}, Std Dev: {std_distance:.2f}")
+    # plt.show()
+
+all_polygons= pd.concat(all_gid_polygons, ignore_index=True)
+
+sumary=all_polygons.groupby('GlobalID').agg({'hausdorff_distance': ['mean', 'std', 'min', 'max', 'count']})
+
+plt.figure(figsize=(12, 8))
+# Encode GlobalID as numeric for coloring
+all_polygons['gid_numeric'] = pd.Categorical(all_polygons['GlobalID']).codes
+scatter = plt.scatter(all_polygons['date'], all_polygons['hausdorff_distance'], c=all_polygons['gid_numeric'], cmap='tab20', alpha=0.8)
+plt.xlabel('Date')
+plt.ylabel('Hausdorff Distance to Consensus Polygon')
+plt.title('Hausdorff Distance Over Time for Ceiba pentandra')
+plt.grid(True)
+plt.colorbar(scatter, label='GlobalID (encoded)')
+plt.show()
+
+
+
+gid_th= sumary[sumary[('hausdorff_distance', 'mean')] < 4].index.tolist()  ## we are using 10 as threshold for now
+len(gid_th)
+
+data= pd.read_csv(r"timeseries/dataset_extracted/ceiba.csv")
+data= data[data['GlobalID'].isin(gid_th)]  ## filter to only those with good polygon representation
 
 ##date wrangling
 data['date'] = pd.to_datetime(data['date'], format='%Y-%m-%d')
@@ -22,16 +84,15 @@ globalID= data['GlobalID'].unique()
 len(globalID)
 plt.figure(figsize=(20, 6))
 
-for tree in data['GlobalID'].unique():
-    indv = data[data['GlobalID'] == tree]
-    tagn= indv['tag'].unique()[0]
-    plt.plot(indv['date'], indv['leafing'], label=f"Tree {tagn}", alpha=0.7)
-    
+# Encode GlobalID as numeric for coloring
+for gid in globalID:
+    indv = data[data['GlobalID'] == gid]
+    plt.plot(indv['date'], indv['leafing_predicted'], label=str(gid))
 plt.xlabel('Date')
 plt.ylabel('Leafing Predicted')
-plt.grid(True)
-plt.title('Hura Crepitans: Leaf coverage vs Date')
-plt.legend(title="ForestGeo Tag", bbox_to_anchor=(1, 1), loc='upper left')
+plt.title('Ceiba pentandra: Leaf coverage vs Date')
+#plt.legend(title='GlobalID', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
 plt.show()
 
 
@@ -46,10 +107,17 @@ plt.grid(True)
 plt.title('Leafing Predicted vs Day of Year with Trend Line')
 plt.show()
 
+
+
+
+
 counter = 1  # Initialize counter
 all_df = []
 for tree in globalID:
     indv = data[data['GlobalID'] == tree]
+    # indv['dayYear'] = indv['date'].dt.dayofyear
+    # indv['date_num'] = (indv['date'] - indv['date'].min()).dt.days
+    # indv['year'] = indv['date'].dt.year
     full_date_range = pd.date_range(start=data['date'].min(), end=data['date'].max(), freq='D')
     full_df = pd.DataFrame({'date': full_date_range})
     full_df['dayYear'] = full_df['date'].dt.dayofyear
@@ -60,21 +128,21 @@ for tree in globalID:
 
     ##breakpoint detection
     signal = indv['leafing'].values
-    algo_python = rpt.Pelt(model="rbf",jump=1,min_size=20).fit(signal)
-    penalty_value = 30 ## 35 for hura
+    algo_python = rpt.Pelt(model="rbf",jump=1,min_size=10).fit(signal)
+    penalty_value = 25 ## 35 for hura
     bkps_python = algo_python.predict(pen=penalty_value)
 
-    plt.figure(figsize=(12, 6))
-    plt.scatter(indv['date_num'], indv['leafing'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
-    plt.xlabel('Day of year')
-    plt.ylabel('Leafing Predicted')
-    plt.grid(True)
-    plt.title(tree)
-    plt.legend()
-    plt.colorbar(label='Year')
-    for bp in bkps_python:
-        plt.axvline(x=bp, color='red', linestyle='--', linewidth=2)
-    plt.show()
+    # plt.figure(figsize=(12, 6))
+    # plt.scatter(indv['date_num'], indv['leafing'], c=indv['year'], cmap='viridis', label='Leafing Predicted')
+    # plt.xlabel('Day of year')
+    # plt.ylabel('Leafing Predicted')
+    # plt.grid(True)
+    # plt.title(tree)
+    # plt.legend()
+    # plt.colorbar(label='Year')
+    # for bp in bkps_python:
+    #     plt.axvline(x=bp, color='red', linestyle='--', linewidth=2)
+    # plt.show()
     print(tree)
     indv['breakpoint'] = False
     indv.loc[indv['date_num'].isin(bkps_python), 'breakpoint'] = True
@@ -136,3 +204,80 @@ len(out_df_2['GlobalID'].unique())
 
 out_df_2.to_csv(r'timeseries/dataset_analysis/hura_analysis.csv')
 
+
+
+##############################################################
+selected_trees=['b0e0daf6-3d04-4565-ad3f-42b83e21c188', 'b5133434-1910-4069-9e34-899fac89dea3']
+data= pd.read_csv(r"timeseries/dataset_extracted/ceiba.csv")
+#data= data[data['GlobalID'].isin(selected_trees)]  ## filter to only those with good polygon representation
+data['date'] = pd.to_datetime(data['date'], format='%Y-%m-%d')
+data['dayYear'] = data['date'].dt.dayofyear
+data['year']= data['date'].dt.year
+data['date_num']= (data['date'] -data['date'].min()).dt.days
+
+all_trees=data['GlobalID'].unique()  # Replace with actual GlobalIDs
+all_df = []
+for gid in all_trees:
+    indv = data[data['GlobalID'] == gid]
+    full_date_range = pd.date_range(start=data['date'].min(), end=data['date'].max(), freq='D') 
+    full_df = pd.DataFrame({'date': full_date_range})
+    full_df['dayYear'] = full_df['date'].dt.dayofyear
+    full_df['date_num'] = (full_df['date'] - full_df['date'].min()).dt.days
+    full_df['year'] = full_df['date'].dt.year
+    indv = pd.merge(full_df, indv, on=['date', 'date_num', 'year', 'dayYear'], how='left')
+    indv['leafing'] = indv['leafing'].interpolate(method='linear')
+    indv['GlobalID'] = gid
+    all_df.append(indv)
+
+test = pd.concat(all_df, ignore_index=True)
+
+plt.figure(figsize=(12, 6))
+for gid in all_trees:
+    indv = test[test['GlobalID'] == gid]
+    plt.plot(indv['date_num'], indv['leafing'], label=str(gid))
+plt.show()
+
+
+# i want all days in test that are below leafing 20
+dict={}
+for gid in all_trees:
+    indv = test[test['GlobalID'] == gid]
+    below_20 = indv[indv['leafing'] < 15]
+    below_20['group'] = (below_20['date_num'].diff() > 1).cumsum()
+    mid_dates = below_20.groupby('group')['date_num'].median().values
+    dict[gid] = mid_dates
+    print(gid, mid_dates)
+
+
+
+
+
+plt.figure(figsize=(12, 6))
+for gid in all_trees[0:5]:
+    mid_dates = dict[gid]
+    for bkp in mid_dates:
+        start_day = bkp - 60
+        end_day = bkp + 60
+        segment = test[(test['GlobalID'] == gid) & (test['date_num'] >= start_day) & (test['date_num'] <= end_day)]
+        segment = segment[segment['leafing_predicted'].notna()]
+        segment['seg_day'] = segment['date_num'] - bkp
+        plt.plot(segment['seg_day'], segment['leafing'], marker='o')
+        #plt.axvline(x=0, color='red', linestyle='--', label='Breakpoint')
+plt.title('Segments around Breakpoints')
+plt.xlabel('Date Num')
+plt.ylabel('Leafing')
+plt.legend()
+plt.show()
+
+for bkp in mid_dates:
+    start_day = bkp - 60
+    end_day = bkp + 60
+    segment = test[(test['date_num'] >= start_day) & (test['date_num'] <= end_day)]
+    segment['seg_day'] = segment['date_num'] - bkp
+    plt.plot(segment['seg_day'], segment['leafing'], marker='o')
+    #plt.axvline(x=0, color='red', linestyle='--', label='Breakpoint')
+plt.title('Segments around Breakpoints')
+plt.xlabel('Date Num')
+plt.ylabel('Leafing')
+plt.legend()
+plt.show()

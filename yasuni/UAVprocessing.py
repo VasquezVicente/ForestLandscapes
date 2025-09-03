@@ -1,38 +1,45 @@
 import os 
 import geopandas as gpd
-# import pandas as pd
-# import shutil
-# import Metashape
-# from collections import defaultdict
+import pandas as pd
+import shutil
+import Metashape
+from collections import defaultdict
 
-project_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\Yasuni_Phantom_20190706\ECUADOR_yasuni_2019_07_06_P4P.psx"
+project_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV"
+dirs=[d for d in os.listdir(project_path) if os.path.isdir(os.path.join(project_path,d)) and d.startswith("ECUADOR_yasuni_")]
 
-# doc = Metashape.Document()
-# doc.open(project_path)
+for idx, d in enumerate(dirs, 1):
+    print(f"{idx}: {d}")
 
-# chunk=doc.chunk
+choice = int(input("Enter the number of the directory to process: ")) - 1
+selected_dir = dirs[choice]
+project_path = r"D:\Yasuni\ECUADOR_yasuni_2019_02_11_P4P\ECUADOR_yasuni_2019_02_11_P4P.psx"
+
+doc = Metashape.Document()
+doc.open(project_path)
+chunk = doc.chunks[0]
 
 out_path= os.path.join(os.path.dirname(project_path), "RGB")
-# os.makedirs(out_path, exist_ok=True)
+os.makedirs(out_path, exist_ok=True)
 
-# used_names = defaultdict(int)
-# for photo in chunk.cameras:
-#     src = photo.photo.path
-#     base = os.path.basename(src)
+used_names = defaultdict(int)
+for photo in chunk.cameras:
+    src = photo.photo.path
+    base = os.path.basename(src)
     
-#     count = used_names[base]
-#     if count == 0:
-#         dst_name = base
-#     else:
-#         name, ext = os.path.splitext(base)
-#         dst_name = f"{name}_{count}{ext}"
+    count = used_names[base]
+    if count == 0:
+        dst_name = base
+    else:
+        name, ext = os.path.splitext(base)
+        dst_name = f"{name}_{count}{ext}"
     
-#     used_names[base] += 1
-#     dst = os.path.join(out_path, dst_name)
-#     shutil.copy(src, dst)
+    used_names[base] += 1
+    dst = os.path.join(out_path, dst_name)
+    shutil.copy(src, dst)
 
 from skimage import io, exposure
-ref_image = r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\Yasuni_Phantom_20190706\2019_Jul_06_Phantom_Flight_1_315.JPG"
+ref_image = r"D:\Yasuni\ECUADOR_yasuni_2019_02_11_P4P\2019_Feb_11_Phantom_Flight_3_43.JPG"
 ref_image= io.imread(ref_image)
 #io.imread(os.path.join(out_path,"DJI_0053.JPG"))
 
