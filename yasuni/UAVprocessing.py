@@ -13,7 +13,7 @@ for idx, d in enumerate(dirs, 1):
 
 choice = int(input("Enter the number of the directory to process: ")) - 1
 selected_dir = dirs[choice]
-project_path = r"D:\Yasuni\ECUADOR_yasuni_2019_02_11_P4P\ECUADOR_yasuni_2019_02_11_P4P.psx"
+project_path = r"D:\Yasuni\ECUADOR_yasuni_2019_02_06_P4P\ECUADOR_yasuni_2019_02_06_P4P.psx"
 
 doc = Metashape.Document()
 doc.open(project_path)
@@ -39,7 +39,7 @@ for photo in chunk.cameras:
     shutil.copy(src, dst)
 
 from skimage import io, exposure
-ref_image = r"D:\Yasuni\ECUADOR_yasuni_2019_02_11_P4P\2019_Feb_11_Phantom_Flight_3_43.JPG"
+ref_image = r"D:\Yasuni\ECUADOR_yasuni_2019_02_06_P4P\2019_Feb_06_Phantom_Flight_2_431.JPG"
 ref_image= io.imread(ref_image)
 #io.imread(os.path.join(out_path,"DJI_0053.JPG"))
 
