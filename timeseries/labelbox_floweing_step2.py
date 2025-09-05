@@ -23,13 +23,12 @@ global_keys = [item["data_row"]["external_id"] for item in export_json]
 
 data = [] 
 for row in export_json:
-    #give me all the keys of row
-    row_keys = list(row.keys())
     polygon_id = row["data_row"]["external_id"]  # Extract polygon ID
     row_data = {"polygon_id": polygon_id}
-    status= row["project_details"]["workflow_status"]
-    row_data['status']=status
     for project_id, project_data in row['projects'].items():  # every project is a columns
+        row_data['status'] = project_data['project_details']['task_name']
+        if project_data['project_details']['task_name'] == 'Rework (all rejected)':
+            continue  # Skip if not "In rework"
         for label in project_data['labels']:  # Access labels
             classifications = label['annotations']['classifications']
             for classification in classifications:
@@ -50,17 +49,11 @@ for row in export_json:
     data.append(row_data)
      
 flowering_dataset= pd.DataFrame(data)
+flowering_dataset= flowering_dataset[(flowering_dataset['status'] != 'Rework (all rejected)')& (flowering_dataset['segmentation']!= 'bad')]
 flowering_dataset['polygon_id'] = flowering_dataset['polygon_id'].apply(os.path.basename)
 flowering_dataset['polygon_id'] = flowering_dataset['polygon_id'].apply(lambda x: x.split(".")[0])
 
 flowering_dataset=flowering_dataset[~flowering_dataset['leafing'].isna()]
 
-
-flowering_dataset['isFlowering'] = flowering_dataset.apply(
-    lambda x: x['floweringIntensity'] if pd.notna(x['floweringIntensity']) 
-              else ('yes' if x['floweringIntensity'] > 0 else 'no'),
-    axis=1
-)
-
-
 flowering_dataset.to_csv('timeseries/dataset_corrections/flower_out.csv')
+
