@@ -1,0 +1,72 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{mathrsfs}
+\usepackage[margin=1in]{geometry} % Reduce margins to use more of the page
+\begin{document}
+
+\subsection{Problem Statement}
+
+We have observed 3 individual trees of the same species before, during and after the dry season.
+The species of tree is known to drop its leaves during the dry season and we aim to interpolate between observations the daily values.
+
+Given a set of individuals $S={A,B,C}$, in which tree A was observed at days 2 and 4 with leafing values of 100 and 0, tree B was observed at days 1 and 3 with values 100 and 0, and tree C was observed at days 2 and 3 with values 100 and 0.
+The data can be represented in a table as follows
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|c|c|c|}
+        \hline
+        GlobalID & Day & Leafing \\
+        \hline
+        A & 2 & 100 \\
+        A & 4 & 0 \\
+        B & 1 & 100 \\
+        B & 3 & 0 \\
+        C & 2 & 100 \\
+        C & 3 & 0 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Rate of decay can be calculated for each individual as:
+\begin{equation}
+    k= \frac{\Delta y}{\Delta t} = \frac{y_{final} - L_{initial}}{t_{final} - t_{initial}}
+\end{equation}
+\begin{align}
+    k_A &= \frac{0 - 100}{4 - 2} = -50 \\
+    k_B &= \frac{0 - 100}{3 - 1} = -50 \\
+    k_C &= \frac{0 - 100}{3 - 2} = -100
+\end{align}
+It can be interpreted as: "Trees A and B lose 50\% of their leaves per day, while tree C loses 100\% of its leaves per day".
+But we do not know which one is correct, and the observed data may be influenced by various factors.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../plots/leafing_over_time.png}
+    \caption{Leafing Over Time for Each Tree}
+\end{figure}
+
+Given a set observations $(t_i, y_i, l_i)$. Where $t_i$ is the day, $y_i$ is the leafing value (0-100) and $l_i$ is the label indicating if the observation was made by a human annotator or predicted from a model.
+
+we aim to define $f(t)$ as a function that can interpolate the leafing values over time.
+
+Each observation is either obtained from human annotators or is predicted from a Stochastic gradient boosting trees model. 
+Values from humans annotators are considered to be ground truthed and have an associated error of zero.
+Values predicted from the SGBT model have an associated error that can be defined as a function of the leafing value.
+
+Let $\epsilon_i$ be the error associated with observation $O_i$. We can define the error as a function of the leafing value:
+
+\begin{equation}
+    f_{\text{error}}(y_i, l_i) = 
+    \begin{cases}
+        0 & \text{if } l_i = \text{annotator was a human} \\
+        3 & \text{if } 0 \leq y \leq 20 \text{ or } 80 \leq y \leq 100 \\
+        30 & \text{if } 20 < y < 80
+    \end{cases}
+\end{equation}
+
+We can then fit a model to predict the leafing values given t and their associated errors.
+In this case we will use a GAMM (Generalized Additive Mixed Model).
+
+\end{document}
