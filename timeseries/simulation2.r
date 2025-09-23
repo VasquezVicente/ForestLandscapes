@@ -21,56 +21,43 @@ simulated$phenoDay <- simulated$day - simulated$oct1 + 1
 simulated$phenoDay <- ifelse(simulated$phenoDay <= 0,
                              simulated$phenoDay + ifelse(simulated$is_leap, 366, 365),
                              simulated$phenoDay)
-
-View(simulated)
+simulated$dip <- pmax(0, 100 - simulated$observed_leafing)
 head(simulated)
 
 windows()
-ggplot(simulated, aes(x=phenoDay, y=observed_leafing, color=as.factor(year)))+
+ggplot(simulated, aes(x=phenoDay, y=dip, color=as.factor(year)))+
   geom_point()+
   scale_x_continuous(name="Pheno Day",
                      breaks=c(1,20,40,60,70,80,100,110,120,130,140,150,160,170,180,190,200,210,220,230,240,250,260,270,280,290,300,310,320,330,340,350,360))+
   theme_minimal()
 
-ggplot(simulated, aes(x = phenoDay, y = observed_leafing, color = as.factor(year))) +
-  geom_point() +
-  scale_x_continuous(
-    name = "DOY",
-    breaks = c(1, 60, 120, 180, 240, 300, 365),
-    labels = function(x) {
-      doy <- (x + simulated$oct1[1] - 1) %% ifelse(simulated$is_leap[1], 366, 365)
-      ifelse(doy == 0, ifelse(simulated$is_leap[1], 366, 365), doy)
-    }
-  ) +
-  theme_minimal()
 
-fit_leafing<- bf(observed_leafing ~ Lmax / (1 + exp(-k * (phenoDay - t0))),
-                 Lmax ~ 1,
-                 k ~ 1,
-                 t0 ~ 1 + (1|year),
-                 nl = TRUE)
+simulated$y_norm <- pmin(pmax(simulated$observed_leafing / 100, 1e-4), 1 - 1e-4)
 
-priors <- c(
-  prior(normal(100, 5), nlpar = "Lmax"),    # near 100
-  prior(normal(0.88, 0.3), nlpar = "k", lb = 0),    # slope
-  prior(normal(120, 20), nlpar = "t0"))      # midpoint prior around true value
+head(simulated)
 
-
-fit_brms <- brm(
-  formula = fit_leafing,
+fit <- brm(
+  bf(y_norm ~ s(day, bs = "cc", k = 20) + (1 | year)),
   data = simulated,
-  prior = priors,
-  chains = 4,
-  iter = 4000,
-  cores = 4,
-  control = list(adapt_delta = 0.95)
+  family = Beta(),
+  chains = 4, iter = 4000, warmup = 1000
 )
 
-posterior<- as_draws_df(fit_brms)
-colnames(posterior)
 
-posterior_2019<- as_draws_df(fit_brms, variable= "b_t0_Intercept")
-summary(posterior_2019)
+# Predict the latent curve across days (population mean, no random effects)
+newdays <- data.frame(day = 1:365)
+mu_pop <- posterior_epred(fit, newdata = newdays, re_formula = NA)
 
+
+# Convert back to 0-100
+latent_curve <- 100 * apply(mu_pop, 2, mean)        # mean curve
+lat_lower   <- 100 * apply(mu_pop, 2, quantile, probs = 0.025)
+lat_upper   <- 100 * apply(mu_pop, 2, quantile, probs = 0.975)
+
+# Plot (example)
 windows()
-hist(posterior_2019$b_t0_Intercept, breaks=30)
+plot(simulated$day, simulated$observed_leafing, pch = 16, cex = 0.5, col = rgb(0,0,0,0.1), # nolint
+     xlab = "Day of year", ylab = "Predicted leafing (0-100)")
+lines(1:365, latent_curve, lwd = 2, col = "darkgreen")
+lines(1:365, lat_lower, lty = 2, col = "gray50")
+lines(1:365, lat_upper, lty = 2, col = "gray50")

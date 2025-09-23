@@ -13,7 +13,7 @@ for idx, d in enumerate(dirs, 1):
 
 choice = int(input("Enter the number of the directory to process: ")) - 1
 selected_dir = dirs[choice]
-project_path = r"D:\Yasuni\ECUADOR_yasuni_2019_02_06_P4P\ECUADOR_yasuni_2019_02_06_P4P.psx"
+project_path = r"D:\Yasuni\ECUADOR_yasuni_2019_07_02_P4P\ECUADOR_yasuni_2019_07_02_P4P.psx"
 
 doc = Metashape.Document()
 doc.open(project_path)
@@ -38,6 +38,41 @@ for photo in chunk.cameras:
     dst = os.path.join(out_path, dst_name)
     shutil.copy(src, dst)
 
+
+list_projects= [r"D:\Yasuni\ECUADOR_yasuni_2019_05_05_P4P\ECUADOR_yasuni_2019_05_05_P4P.psx",
+                r"D:\Yasuni\ECUADOR_yasuni_2019_05_09_P4P\ECUADOR_yasuni_2019_05_09_P4P.psx",
+                r"D:\Yasuni\ECUADOR_yasuni_2019_05_29_P4P\ECUADOR_yasuni_2019_05_29_P4P.psx",
+                r"D:\Yasuni\ECUADOR_yasuni_2019_07_02_P4P\ECUADOR_yasuni_2019_07_02_P4P.psx"
+                ]
+
+for project_path in list_projects:
+    doc = Metashape.Document()
+    doc.open(project_path)
+    chunk = doc.chunks[0]
+    chunk.matchPhotos(downscale=0,keypoint_limit = 40000, tiepoint_limit = 4000, generic_preselection = True, reference_preselection = True)
+    doc.save()
+    chunk.alignCameras(adaptive_fitting=True)
+    doc.save()
+    print(f"Processed project: {project_path}") #break for GCPs
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 from skimage import io, exposure
 ref_image = r"D:\Yasuni\ECUADOR_yasuni_2019_02_06_P4P\2019_Feb_06_Phantom_Flight_2_431.JPG"
 ref_image= io.imread(ref_image)
@@ -61,50 +96,3 @@ for i, filename in enumerate(jpg_files, 1):
 
     print(f"[{i}/{total_files}] Processed: {filename}")
 
-from shapely.geometry import box
-path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\ECUADOR_yasuni_2025_05_30_M3E\20250530_yasuni_m3e_rgb_gr0p07_infer.shp"
-
-crownmap= gpd.read_file(path)
-
-
-minx, miny, maxx, maxy = crownmap.total_bounds
-
-# Grid dimensions
-cols = 6
-rows = 3
-tile_width = (maxx - minx) / cols
-tile_height = (maxy - miny) / rows
-
-# Create a list to store the tiles and their bounds
-tiles = []
-for i in range(cols):
-    for j in range(rows):
-        x0 = minx + i * tile_width
-        y0 = miny + j * tile_height
-        x1 = x0 + tile_width
-        y1 = y0 + tile_height
-        tile_geom = box(x0, y0, x1, y1)
-        tiles.append({
-            "tile_id": f"tile_{i}_{j}",
-            "geometry": tile_geom
-        })
-
-# Convert tiles into a GeoDataFrame
-tiles_gdf = gpd.GeoDataFrame(tiles, crs=crownmap.crs)
-
-# For each tile, filter the crownmpa1 polygons that fall **completely** within the tile
-output_dir = r"\\stri-sm01\ForestLandscapes\UAVSHARE\Forrister_Yasuni_UAV\ECUADOR_yasuni_2025_05_30_M3E\tiles2"
-os.makedirs(output_dir, exist_ok=True)
-
-for idx, tile in tiles_gdf.iterrows():
-    tile_geom = tile.geometry
-    tile_id = tile.tile_id
-
-    # Select geometries that are fully within the tile
-    in_tile = crownmap[crownmap.within(tile_geom)]
-
-    if not in_tile.empty:
-        out_fp = os.path.join(output_dir, f"{tile_id}.shp")
-        in_tile.to_file(out_fp)
-
-print("Done splitting into tiles.")

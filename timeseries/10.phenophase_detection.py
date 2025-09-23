@@ -30,13 +30,7 @@ for t_value in t:
     true_leafing = df_true[df_true['time'] == day_of_year]['leafing'].values[0]
     full_true.append({'date': t_value, 'leafing': true_leafing})
 
-df_true_all_years =
-##20 first days of the year
-## 7 days to drop from 100 to 0
-# 20 days at 0
-# 5 days to rise from 0 to 100
-# total 32 days of deciduousness
-## rest of the year at 100 pd.DataFrame(full_true)
+df_true_all_years = pd.DataFrame(full_true)
 
 plt.figure(figsize=(12, 6))
 plt.plot(df_true_all_years['date'], df_true_all_years['leafing'], label='True Leaf Drop Pattern')
@@ -52,12 +46,6 @@ df_true_all_years['dayYear'] = df_true_all_years['date'].dt.dayofyearals
 t_samples = [start_date]
 while t_samples[-1] < end_date:
     #interval = np.random.randint(25, 36) # Randomly choose the next interval between 25 a
-
-plt.figure(figsize=(12, 6))
-for year in df_true_all_years['date'].dt.year.unique():
-    subset = df_true_all_years[df_true_all_years['date'].dt.year == year]
-    plt.plot(subset['dayYear'], subset['leafing'], label=f'Year {year}')
-plt.show()nd 35 days ~ monthly data
     interval = np.random.randint(13, 17) # Randomly choose the next interval between 13 and 17 days ~ biweekly data
     interval = np.random.randint(6, 9)   # Randomly choose the next interval between 6 and 7 days ~ weekly data
     next_date = t_samples[-1] + pd.Timedelta(days=interval)
@@ -68,6 +56,15 @@ plt.show()nd 35 days ~ monthly data
 t_samples = pd.to_datetime(t_samples)
 print(len(t_samples), t_samples)
 # Use t_samples for simulated observations
+
+data= pd.read_csv(r"timeseries/dataset_extracted/cavallinesia.csv")
+data['date'] = pd.to_datetime(data['date'], format='%Y-%m-%d')
+data['dayYear'] = data['date'].dt.dayofyear
+data['year']= data['date'].dt.year
+data['date_num']= (data['date'] -data['date'].min()).dt.days
+
+t_samples = data['date'].unique()
+
 
 #now every tree in the set:
 trees= ['A', 'B', 'C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T']
@@ -164,6 +161,8 @@ plt.ylabel('Leafing')
 plt.title('Observed Data Colored by Tree')
 plt.show()
 
+
+df_observed.to_csv("timeseries/simulated_phenophase_data.csv", index=False)
 
 
 all_events = []
@@ -316,12 +315,6 @@ for segm in all_points_df['segmentid'].unique():
 ##########################above here is simulated data####################################
 
 ##########################below here is real data####################################
-
-data= pd.read_csv(r"timeseries/dataset_extracted/cavallinesia.csv")
-data['date'] = pd.to_datetime(data['date'], format='%Y-%m-%d')
-data['dayYear'] = data['date'].dt.dayofyear
-data['year']= data['date'].dt.year
-data['date_num']= (data['date'] -data['date'].min()).dt.days
 
 
 data_weekly= data[data['date']>= "2022-08-01"]
