@@ -20,10 +20,13 @@ The data can be represented in a table as follows
         GlobalID & Day & Leafing \\
         \hline
         A & 2 & 100 \\
+        A & 3 & 50 \\
         A & 4 & 0 \\
         B & 1 & 100 \\
+        B & 2 & 50 \\
         B & 3 & 0 \\
         C & 2 & 100 \\
+        C & 2 & 50 \\
         C & 3 & 0 \\
         \hline
     \end{tabular}
@@ -40,6 +43,11 @@ Rate of decay can be calculated for each individual as:
 \end{align}
 It can be interpreted as: "Trees A and B lose 50\% of their leaves per day, while tree C loses 100\% of its leaves per day".
 But we do not know which one is correct, and the observed data may be influenced by various factors.
+
+We can take the mean rate of decay across all individuals and years as:
+\begin{equation}
+    \hat{k} = \sum_{i=1}^{n} \frac{k_i}{n}
+\end{equation}    
 
 \begin{figure}[h]
     \centering

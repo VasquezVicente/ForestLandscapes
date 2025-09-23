@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1757008491.96798 "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" "interpolationProblem.pdf" "interpolationProblem" 1757008492.53182 0
+["pdflatex"] 1757442122.65197 "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" "interpolationProblem.pdf" "interpolationProblem" 1757442123.46077 0
   "../plots/leafing_over_time.png" 1757008490 54860 dea64182e4673708b80a7a8f234687ee ""
   "C:/Users/Vicente/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map" 1756837219 80909 eab91d9745dd2edfd62a31d53cd5fe15 ""
   "C:/Users/Vicente/AppData/Local/MiKTeX/fonts/tfm/public/rsfs/rsfs10.tfm" 1756745809 688 37338d6ab346c2f1466b29e195316aa4 ""
@@ -39,9 +39,9 @@
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/tex/latex/jknappen/mathrsfs.sty" 930764892 300 12fa6f636b617656f2810ee82cb05015 ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/tex/latex/jknappen/ursfs.fd" 930764886 548 cc4e3557704bfed27c7002773fad6c90 ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/tex/latex/l3backend/l3backend-pdftex.def" 1751005717 30351 a2b09edc6c93a742566b222c33d0278e ""
-  "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" 1756937350 3061 0af8d1ab54e30f9879b46de5bd6c5198 ""
-  "interpolationProblem.aux" 1757008492 276 9493835211243ac63d1aff9366fd6031 "pdflatex"
-  "interpolationProblem.tex" 1756937350 3061 0af8d1ab54e30f9879b46de5bd6c5198 ""
+  "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" 1757442122 3287 42a2e6b80acbe37ee7d00ee21d07b8e3 ""
+  "interpolationProblem.aux" 1757442123 276 43af59116f2507dd58d1ecb81c88e519 "pdflatex"
+  "interpolationProblem.tex" 1757442122 3287 42a2e6b80acbe37ee7d00ee21d07b8e3 ""
   (generated)
   "interpolationProblem.aux"
   "interpolationProblem.log"

@@ -12,7 +12,7 @@ export_params= {
   "label_details": True,
 }
 
-client = labelbox.Client(api_key="")
+client = labelbox.Client(api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjbHRoYjZ4d2cwNXA3MDcxMGMzeTk1bTZjIiwib3JnYW5pemF0aW9uSWQiOiJjanF6bGVoNHcweGhxMDc3N2dqNDF0cHNrIiwiYXBpS2V5SWQiOiJjbWY3Nm5iejEwOGFoMDd4cmV0ZmIyb2U0Iiwic2VjcmV0IjoiNDA2YTc5MDBkNDI2ZWIxMTAxNDlkMjBiZDg4ZjUxZTMiLCJpYXQiOjE3NTcwOTc3NzQsImV4cCI6MTc1OTUxNjk3NH0.iEH9lpjDCY8k3hzGTde-SmiMZ-mkeC8fZcDL-Zc6v08")
 project = client.get_project("cm8azfo2f037h074jgzid05f9")
 export_task = project.export(params=export_params)
 export_task.wait_till_done()
