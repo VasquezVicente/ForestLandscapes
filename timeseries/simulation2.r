@@ -52,7 +52,7 @@ fit_leafing<- bf(observed_leafing ~ Lmax / (1 + exp(-k * (phenoDay - t0))),
 
 priors <- c(
   prior(normal(100, 5), nlpar = "Lmax"),    # near 100
-  prior(normal(0.88, 0.3), nlpar = "k"),    # slope
+  prior(normal(0.88, 0.3), nlpar = "k", lb = 0),    # slope
   prior(normal(120, 20), nlpar = "t0"))      # midpoint prior around true value
 
 
@@ -72,4 +72,5 @@ colnames(posterior)
 posterior_2019<- as_draws_df(fit_brms, variable= "b_t0_Intercept")
 summary(posterior_2019)
 
-fit_brms.
+windows()
+hist(posterior_2019$b_t0_Intercept, breaks=30)
