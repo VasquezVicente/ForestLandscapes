@@ -20,20 +20,38 @@ end_date = pd.Timestamp('2024-03-18')
 t = pd.date_range(start=start_date, end=end_date, freq='D')
 t_year= range(1, 367)
 y= [100]*20 + [95, 85, 65, 40, 20, 10,0] + [0]*20 + [5, 25, 45, 70, 90, 100] + [100]*313
+y_shifted_10= [100]*30 + [95, 85, 65, 40, 20, 10,0] + [0]*20 + [5, 25, 45, 70, 90, 100] + [100]*303
 
 df_true=pd.DataFrame({'time': t_year, 'leafing': y})
+df_true_shifted_10=pd.DataFrame({'time': t_year, 'leafing': y_shifted_10})
 #all years true pattern
-full_true= []
+full_true = []
 for t_value in t:
-    #pull the df_true value for that day of year
     day_of_year = t_value.dayofyear
-    true_leafing = df_true[df_true['time'] == day_of_year]['leafing'].values[0]
+    if t_value.year == 2021:
+        true_leafing = df_true_shifted_10.loc[
+            df_true_shifted_10['time'] == day_of_year, 'leafing'
+        ].values[0]
+    else:
+        true_leafing = df_true.loc[
+            df_true['time'] == day_of_year, 'leafing'
+        ].values[0]
+    
     full_true.append({'date': t_value, 'leafing': true_leafing})
-
 df_true_all_years = pd.DataFrame(full_true)
+df_true_all_years['dayYear'] = df_true_all_years['date'].dt.dayofyear
+df_true_all_years['year']= df_true_all_years['date'].dt.year
+
 
 plt.figure(figsize=(12, 6))
-plt.plot(df_true_all_years['date'], df_true_all_years['leafing'], label='True Leaf Drop Pattern')
+for year in df_true_all_years['year'].unique():
+    subset = df_true_all_years[df_true_all_years['year'] == year]
+    plt.plot(subset['dayYear'], subset['leafing'], label=f'Year {year}')
+plt.legend()
+plt.xlim(5, 80)
+plt.show()
+
+plt.plot(df_true_all_years['date'], df_true_all_years['leafing'], label='Leaf Drop Pattern (with 2021 shifted)')
 plt.legend()
 plt.show()
 ##############
@@ -65,7 +83,8 @@ data['date_num']= (data['date'] -data['date'].min()).dt.days
 
 t_samples = data['date'].unique()
 
-
+for t in t_samples:
+    print(t)
 #now every tree in the set:
 trees= ['A', 'B', 'C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T']
 #is sampled at every t_samples dy
@@ -77,12 +96,11 @@ pheno_years= range(start_date.year, end_date.year + 1, 1)                      #
 
 
 preferred_shifts = {'A': 0, 'B': 0, 'C': 0, 'D': 0, 'E': 0, 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'K': 0, 'L': 0, 'M': 0, 'N': 0, 'O': 0, 'P': 0, 'Q': 0, 'R': 0, 'S': 0, 'T': 0}
-
+preferred_shifts_year= {2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0}
 shifts_keyed = {}
 for pheno_year in pheno_years:
         shifts_keyed[pheno_year] = {}
-        #shift_pheno_year = np.random.choice(range(-10, 11))
-        shift_pheno_year = 0
+        shift_pheno_year = preferred_shifts_year[pheno_year]
         shifts_keyed[pheno_year]['year_shift'] = shift_pheno_year
         print(f"    Shift for pheno year {pheno_year}: {shift_pheno_year}")
 
@@ -95,7 +113,7 @@ for pheno_year in pheno_years:
 
 observed_values= []
 for t_sample in t_samples:
-    print(t_sample)
+    print(f"Sampling date: {t_sample.date()}")
     # Get leafing values 15 days before and after t_sample
     mask = (df_true_all_years['date'] >= t_sample - pd.Timedelta(days=15)) & (df_true_all_years['date'] <= t_sample + pd.Timedelta(days=15))
     leafing_window = df_true_all_years.loc[mask, 'leafing'].values
@@ -109,7 +127,7 @@ for t_sample in t_samples:
         # get the shifts for year and tree
         year_shift = shifts_keyed[pheno_year]['year_shift']
         tree_shift = shifts_keyed[pheno_year][tree]
-        print(f"    Year shift: {year_shift}, Tree shift: {tree_shift}")
+        #print(f"    Year shift: {year_shift}, Tree shift: {tree_shift}")
         total_shift = year_shift + tree_shift
         print(f"    Total shift for tree {tree} in year {pheno_year}: {total_shift}")
         #now i need to look up the value of leafing at population_leafing + total_shift
@@ -133,9 +151,9 @@ for t_sample in t_samples:
             high = min(100, leafing_value + error)
 
             leafing = np.random.uniform(low, high)
-            print(f"low={low}, high={high}, leafing={leafing}")
+            #print(f"low={low}, high={high}, leafing={leafing}")
 
-        print(f"Tree: {tree}, Date: {t_sample.date()}, Actual Leafing: {leafing_value}, Label: {label}, Observed Leafing: {leafing:.2f}, Error: {error}")
+        #print(f"Tree: {tree}, Date: {t_sample.date()}, Actual Leafing: {leafing_value}, Label: {label}, Observed Leafing: {leafing:.2f}, Error: {error}")
         observed_values.append({
             'tree': tree,
             'date': t_sample.date(),
@@ -149,6 +167,8 @@ df_observed = pd.DataFrame(observed_values)
 
 df_observed['date'] = pd.to_datetime(df_observed['date'])
 df_observed['date_num'] = (df_observed['date'] - df_observed['date'].min()).dt.days
+df_observed['dayYear'] = df_observed['date'].dt.dayofyear
+df_observed['year']= df_observed['date'].dt.year
 # Color by different tree
 plt.figure(figsize=(12, 6))
 for tree in df_observed['tree'].unique():
@@ -160,6 +180,17 @@ plt.xlabel('Day')
 plt.ylabel('Leafing')
 plt.title('Observed Data Colored by Tree')
 plt.show()
+
+plt.figure(figsize=(12, 6))
+for year in df_true_all_years['year'].unique():
+    subset = df_true_all_years[df_true_all_years['year'] == year]
+    plt.plot(subset['dayYear'], subset['leafing'], label=f'Year {year}')
+    subset_obs = df_observed[df_observed['year'] == year]
+    plt.scatter(subset_obs['dayYear'], subset_obs['observed_leafing'], label=f'Observed {year}', alpha=0.3)
+plt.legend()
+plt.xlim(1, 100)
+plt.show()
+
 
 
 df_observed.to_csv("timeseries/simulated_phenophase_data.csv", index=False)

@@ -6,75 +6,161 @@
 \begin{document}
 
 \subsection{Problem Statement}
+I aim to model a seasonal leaf coverage curve for multiple trees across multiple phenological years.
+Leaf coverage is a continuous variable ranging from 0 to 100, where 0 means no leaves and 100 means full leaf coverage.
+Phenological years are defined as a full cycle of leaf coverage, which may not align with calendar years.
+For example, some trees have bimodal yearly cycles, with two distinct periods of leaf coverage increase and decrease.
+Thus, their phenological year may have a duration of half a calendar year.
+In this study, individual trees are distinct exposed tree crowns that are observed from drone imagery.
+The observations are made at partially regular intervals, and all trees are observed at the same time.
+The full span of the observations ranges from  April 4, 2018 to March 18, 2024.
+Observations are made at a monthly frequency between April 2018 and January 2023 and 
+weekly frequency between February 2023 and March 2024.
+An exception exists between February 27, 2020 and May 27, 2020 where no observations were made due to COVID-19 lockdowns.
 
-We have observed 3 individual trees of the same species before, during and after the dry season.
-The species of tree is known to drop its leaves during the dry season and we aim to interpolate between observations the daily values.
+From here onwards, I will refer to a "deciduousness event" as the period of time in which a tree drops its leaves , stays dormant and then flushes new leaves.
+A leaf drop event is defined as the period of time in which a tree drops its leaves.
+A leaf flush event is defined as the period of time in which a tree flushes new leaves.
+A dormancy event is defined as the period of time in which a tree has no leaves. 
+All of the events have a duration in days.
+Leaf drop and leaf flush events have a duration and rate of change in leaf coverage.
+Dormancy events have a duration but we expect no change in leaf coverage.
+Fully leafed events have a duration but we expect very little change in leaf coverage attributed to leaf exchange during the phenological year.
 
-Given a set of individuals $S={A,B,C}$, in which tree A was observed at days 2 and 4 with leafing values of 100 and 0, tree B was observed at days 1 and 3 with values 100 and 0, and tree C was observed at days 2 and 3 with values 100 and 0.
-The data can be represented in a table as follows
 
-\begin{table}[h]
-    \centering
-    \begin{tabular}{|c|c|c|}
-        \hline
-        GlobalID & Day & Leafing \\
-        \hline
-        A & 2 & 100 \\
-        A & 3 & 50 \\
-        A & 4 & 0 \\
-        B & 1 & 100 \\
-        B & 2 & 50 \\
-        B & 3 & 0 \\
-        C & 2 & 100 \\
-        C & 2 & 50 \\
-        C & 3 & 0 \\
-        \hline
-    \end{tabular}
-\end{table}
 
-Rate of decay can be calculated for each individual as:
+The main questions are:
+\begin{itemize}
+    \item Does phenological year has an effect on the timing of leaf deciduousness events?
+    \item What is the variability associated to individual trees in the timing and duration of leaf deciduousness events?
+\end{itemize}
+
+From the stated questions, we can identify two extreme cases.
+\begin{itemize}
+    \item A group of trees which shows no variation in the timing of leaf deciduousness events. In other words, all trees drop and flush leaves at the same time every year.
+    \item A group of trees which shows cofounded intraspecific and interspecific variation in the timing of leaf deciduousness events. In other words, trees drop and flush leaves at different times every year.
+\end{itemize}
+
+The real challenge arises from the sparse observations which may not capture the transition of leaf drop and leaf flush events.
+For example, if a tree is observed with full leaf coverage on day 1 and no leaves on day 30, we do not know when the tree dropped its leaves.
+
+Let $I$ be the set of all individual trees observed.
+Let $T$ be the set of all observation dates.
+The phenological year for each observation date $t \in T$ is defined as $year(t)$.
+The response variable is leaf coverage $y$, which is a continuous variable ranging from 0 to 100.
+All trees in $I$ are observed at all dates in $T$ and each observation has an associated leaf coverage value $y$.
+For the sake of simplicity, we know that all trees are synchronous and drop their leaves at the same time every year.
+
+Thus, we can define the problem as finding a function $f$ such that:
 \begin{equation}
-    k= \frac{\Delta y}{\Delta t} = \frac{y_{final} - L_{initial}}{t_{final} - t_{initial}}
+    y_{t, i} = f(t, i, year(t)) + \epsilon
 \end{equation}
-\begin{align}
-    k_A &= \frac{0 - 100}{4 - 2} = -50 \\
-    k_B &= \frac{0 - 100}{3 - 1} = -50 \\
-    k_C &= \frac{0 - 100}{3 - 2} = -100
-\end{align}
-It can be interpreted as: "Trees A and B lose 50\% of their leaves per day, while tree C loses 100\% of its leaves per day".
-But we do not know which one is correct, and the observed data may be influenced by various factors.
 
-We can take the mean rate of decay across all individuals and years as:
-\begin{equation}
-    \hat{k} = \sum_{i=1}^{n} \frac{k_i}{n}
-\end{equation}    
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.8\textwidth]{../plots/leafing_over_time.png}
-    \caption{Leafing Over Time for Each Tree}
-\end{figure}
-
-Given a set observations $(t_i, y_i, l_i)$. Where $t_i$ is the day, $y_i$ is the leafing value (0-100) and $l_i$ is the label indicating if the observation was made by a human annotator or predicted from a model.
-
-we aim to define $f(t)$ as a function that can interpolate the leafing values over time.
-
-Each observation is either obtained from human annotators or is predicted from a Stochastic gradient boosting trees model. 
-Values from humans annotators are considered to be ground truthed and have an associated error of zero.
-Values predicted from the SGBT model have an associated error that can be defined as a function of the leafing value.
-
-Let $\epsilon_i$ be the error associated with observation $O_i$. We can define the error as a function of the leafing value:
+Each observation $y_{t, i}$ is either the result a human annotation of the leaf coverage observed in drone imagery or 
+the result of a machine learning model prediction of leaf coverage from drone imagery.
+The human annotation is assumed to be the ground truth and the ML model error is low in the extremes of the leaf coverage
+ range (0 and 100) and high in the middle of the range.
 
 \begin{equation}
-    f_{\text{error}}(y_i, l_i) = 
+    \epsilon = \epsilon_{human} + \epsilon_{model}
+\end{equation}
+
+\begin{equation}
+    \epsilon_{model} =
     \begin{cases}
-        0 & \text{if } l_i = \text{annotator was a human} \\
-        3 & \text{if } 0 \leq y \leq 20 \text{ or } 80 \leq y \leq 100 \\
-        30 & \text{if } 20 < y < 80
+        3, & \text{if } 0 \geq y \leq 20 \\
+        3, & \text{if } 80 \leq y \leq 100 \\
+        30, & \text{if } 20 < y < 80\\
     \end{cases}
 \end{equation}
 
-We can then fit a model to predict the leafing values given t and their associated errors.
-In this case we will use a GAMM (Generalized Additive Mixed Model).
+The $y_{t, i}$ observations are roughly 80\% human annotations and 20\% ML model predictions.
+
+\subsection{Simulation Example 1. Synchronous Trees}
+Here I simulate the values of $y_{t, i}$ for a set of 20 trees observed at the dates in $T$.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{C:/Users/Vicente/repo/ForestLandscapes/plots/simulated_synchronous.png}
+    \caption{Simulated leaf coverage observations for 20 trees observed at the dates in $T$. The black line represents the true leaf coverage curve. The points represent the observations $y_{t, i}$ for each tree $i$ at each date $t$.}
+    \label{fig:interpolation_problem}
+\end{figure}
+
+We can read in the data in R. First obtain the day of year and year from the date.
+Then normalize the observed leaf coverage to be between 0 and 1, avoiding exact 0 and 1 values for numerical stability.
+
+\begin{verbatim}
+    simulated<- read.csv("timeseries\\simulated_phenophase_data.csv")
+    simulated$day<- yday(simulated$date)
+    simulated$year<- year(simulated$date)
+    simulated$y_norm <- pmin(pmax(simulated$observed_leafing / 100, 1e-4), 1 - 1e-4)
+\end{verbatim}
+
+Then we can model the data using brms with a non-linear model smoothed cyclical splines basis to campture the seasonal pattern.
+Even if we have completely missed the transition of leaf drop and leaf flush events in most years.
+The weekly data from 2023 and 2024 should help to constrain the model.
+
+\begin{verbatim}
+    library(brms)
+    fit_smooth <- brm(
+    y_norm ~ s(day,k=20, bs="cc"),
+    data = simulated,
+    family = Beta(),
+    chains = 4,
+    iter = 4000,
+    warmup = 1000,
+    cores = 4
+    )
+    >Smoothing Spline Hyperparameters:
+                Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+    sds(sday_1)     2.09      0.37     1.50     2.94 1.00      980     1781
+    Regression Coefficients:
+            Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+    Intercept     3.34      0.03     3.28     3.39 1.00     7197     7634
+    Further Distributional Parameters:
+        Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+    phi    37.37      1.57    34.36    40.50 1.00     7242     7541
+\end{verbatim}
+
+By defining the start of leaf drop event as the first day in which the predicted leaf coverage is below 0.9.
+We can then extract the predicted values and find the first day below 0.9.
+Similarly, we can find the start of leaf flush event as the first day in which the predicted leaf coverage is above 0.9.
+
+\begin{verbatim}
+    newdata <- data.frame(day = 1:365)
+    pred_draws <- posterior_epred(fit_smooth, newdata = newdata)
+    pred_mean <- posterior_epred(fit_smooth, newdata = newdata, re_formula= NA)
+    pred_mean <- colMeans(pred_mean)
+    first_below_09 <- which(pred_mean < 0.9)[1]
+    first_above_09 <- which(pred_mean > 0.9 & (1:365) > first_below_09)[1]
+    ggplot(newdata, aes(x = day, y = pred_mean)) +
+    geom_line(color = "blue", size = 1) +
+    geom_point(data = simulated, aes(x = day, y = y_norm, color = as.factor(year)), alpha = 0.5) +
+    geom_line(data = df_true, aes(x = time, y = leafing / 100), color = "red", size = 1, linetype = "dashed") +
+    geom_vline(xintercept = first_below_09, color = "black", size= 1) +
+    geom_vline(xintercept = first_above_09,  color = "black", size= 1) +
+    labs(x = "Day of Year", y = "Predicted y_norm") +
+    theme_minimal() +
+    xlim(1, 60)
+\end{verbatim}
+We have nailed the true timing of leaf drop and leaf flush events despite the sparse observations.
+Given that we have pooled all trees together and assumed they are synchronous.
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth, height=0.4\textheight, keepaspectratio]{C:/Users/Vicente/repo/ForestLandscapes/plots/simulated_smooth.png}
+    \caption{Predicted leaf coverage curve from the brms model. The black vertical lines represent the start of leaf drop and end of leaf flush events. The red dashed line represents the true leaf coverage curve. The blue line represents the predicted leaf coverage curve from the brms model. The points represent the observations $y_{t, i}$ for each tree $i$ at each date $t$.}
+    \label{fig:interpolation_problem_fit}
+\end{figure}
+
+\subsection{Simulation Example 2. Asynchronous Year}
+Here I simulate the values of $y_{t, i}$ for a set of 20 trees observed at the dates in $T$.
+2021 is a year in which all trees drop and flush leaves at the same time but 10 days after the usual time in other years.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{C:/Users/Vicente/repo/ForestLandscapes/plots/simulated_2021_shifted.png}
+    \caption{Simulated leaf coverage observations for 20 trees observed at the dates in $T$. The solid lines represent the true leaf coverage for synchronous trees and the points represent the observations $y_{t, i}$ for each tree $i$ at each date $t$. Notice that 2021 true line is shifted 10 days forward in time.}
+    \label{fig:interpolation_problem_asynchronous}
+\end{figure}
 
 \end{document}
