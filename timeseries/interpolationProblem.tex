@@ -163,4 +163,90 @@ Here I simulate the values of $y_{t, i}$ for a set of 20 trees observed at the d
     \label{fig:interpolation_problem_asynchronous}
 \end{figure}
 
+This time a smoothing spline will not work with a random effect of year. 
+It would only allow for vertical shifts but not horizontal shifts.
+Thus we turn to model each $y_{t, i}$ as a double logistic function.
+Two components are needed to capture the leaf drop and leaf flush events.
+First a decay function can be defined as:
+\begin{equation}
+    f_{decay}(DOY)= \frac{1}{1 + e^{k_{d}(DOY - t_{d})}}
+\end{equation}
+
+Where $DOY$ is the day of year, $k_{d}$ is the rate of change of leaf drop event and $t_{d}$ is the inflection point of the leaf drop event.
+Here $LC \approx 1$ when $DOY << t_{d}$ and $LC \approx 0$ when $DOY >> t_{d}$.
+
+Similarly, a leaf flush function can be defined as:
+\begin{equation}
+    f_{flush}(DOY)= \frac{1}{1 + e^{-k_{f}(DOY - t_{f})}}
+\end{equation}
+Where $k_{f}$ is the rate of change of leaf flush event and $t_{f}$ is the inflection point of the leaf flush event.
+Notice the negative sign in the exponent which makes $LC \approx 0$ when $DOY << t_{f}$ and $LC \approx 1$ when $DOY >> t_{f}$.
+
+
+In r we can write the functions as:
+
+\begin{verbatim}
+    f_decay <- function(day, k_d, t_d) {
+      1 / (1 + exp(k_d * (day - t_d)))
+    }
+
+    f_flush <- function(day, k_f, t_f) {
+      1 / (1 + exp(-k_f * (day - t_f)))
+    }
+\end{verbatim}
+
+We can evaluate each function separately and plot them. For the rate of decay we can concibe $K_d = K_f = 0.8$  which means a loss
+of 0.8 units of leaf coverage per day at the inflection point. For the timing of the events we can concieve $t_d = 20$ and $t_f = 50$.
+\begin{verbatim}
+    values <- seq(1, 70, by = 1)
+    decay_values <- f_decay(values, k_d = 0.8, t_d = 20)
+    flush_values <- f_flush(values, k_f = 0.8, t_f = 50)
+
+    plot(values, decay_values, type='l', col='blue', ylim=c(0,1))
+    lines(values, flush_values, col='red') 
+\end{verbatim}
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth, height=0.4\textheight, keepaspectratio]{C:/Users/Vicente/repo/ForestLandscapes/plots/decay_flush.png}
+    \caption{Decay function in blue and flush function in red. The product of both functions gives the leaf coverage curve.}
+    \label{fig:double_logistic_functions}
+\end{figure}
+
+To relate both functions to leaf coverage neither the product or sum of both functions work.
+We turn to an intermidiate phase function which makes the decay or flush function when relevant. 
+\begin{equation}
+    f_{phase}(DOY)= \frac{1}{1 + e^{-0.5 (DOY - t_m)}}
+\end{equation}
+Where $t_m$ is the midpoint between $t_d$ and $t_f$.
+A simplified formula for the double logistic function of leaf coverage is:
+\begin{equation}
+    LC(DOY)= f_{decay}(DOY) * f_{phase}(DOY) + f_{flush}(DOY) * (1 - f_{phase}(DOY))
+\end{equation}
+A full form of the double logistic function of leaf coverage is:
+\begin{equation}
+    LC(DOY)= \frac{1}{1 + e^{k_{d}(DOY - t_{d})}} * \frac{1}{1 + e^{-0.5 (DOY - t_m)}} + \frac{1}{1 + e^{-k_{f}(DOY - t_{f})}} * \left(1 - \frac{1}{1 + e^{-0.5 (DOY - t_m)}}\right)
+\end{equation}
+
+In R we can write the phase function and the full double logistic function as:
+\begin{verbatim}
+    f_phase <- function(values, tm){
+    1/ (1 + exp(-0.5 * (values - tm)))   
+    }
+    LC<- function(values, k_d, t_d, k_f, t_f){
+        t_m<- (t_d + t_f) / 2
+        values<- (1-f_phase(values, t_m)) * f_decay(values, k_d, t_d) + f_phase(values, t_m) * f_flush(values, k_f, t_f)
+        return(values)
+    }
+    LC_values<- LC(values, k_d=0.8, t_d=20, k_f=0.8, t_f=50)
+    plot(values, LC_values, type='l', col='black', ylim=c(0,1))
+\end{verbatim}
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth, height=0.4\textheight, keepaspectratio]{C:/Users/Vicente/repo/ForestLandscapes/plots/doubleLogistic_phased.png}
+    \caption{Double logistic function of leaf coverage in black. The parameters used were $k_d = k_f = 0.8$, $t_d = 20$ and $t_f = 50$.}
+    \label{fig:double_logistic_leaf_coverage}
+\end{figure}
+
 \end{document}

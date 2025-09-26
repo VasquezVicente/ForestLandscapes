@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1758747371.90639 "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" "interpolationProblem.pdf" "interpolationProblem" 1758747372.7192 0
+["pdflatex"] 1758835476.6451 "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" "interpolationProblem.pdf" "interpolationProblem" 1758835477.51336 0
   "C:/Users/Vicente/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map" 1758123708 80909 eab91d9745dd2edfd62a31d53cd5fe15 ""
   "C:/Users/Vicente/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/tcrm1000.pk" 1756742404 11548 a22208732612d4c820a81fc0f3a8a16f ""
   "C:/Users/Vicente/AppData/Local/MiKTeX/fonts/tfm/public/rsfs/rsfs10.tfm" 1756745809 688 37338d6ab346c2f1466b29e195316aa4 ""
@@ -14,9 +14,12 @@
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmbx12.pfb" 1247596666 32080 340ef9bf63678554ee606688e7b5339d ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmex10.pfb" 1247596667 30251 6afa5cb1d0204815a708a080681d4674 ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb" 1247596667 36299 5f9df58c2139e7edcf37c8fca4bd384d ""
+  "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi5.pfb" 1247596667 37912 07513ec114ac737ab54cea0152f4424b ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi7.pfb" 1247596667 36281 c355509802a035cadc5f15869451dcee ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb" 1247596667 35752 024fb6c41858982481f6968b5fc26508 ""
+  "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.pfb" 1247596667 32762 7fee39e011c23b3589931effd97b9702 ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb" 1247596667 32569 5e5ddc8df908dea60932f3c484a54c0d ""
+  "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy7.pfb" 1247596666 32716 08e384dc442464e7285e891af9f45947 ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb" 1247596667 31099 342ef5a582aacbd3346f3cf4579679fa ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/tex/context/base/mkii/supp-pdf.mkii" 1580390158 71627 94eb9990bed73c364d7f53f960cc8c5b ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/tex/generic/iftex/iftex.sty" 1734114575 7984 7dbb9280f03c0a315425f1b4f35d43ee ""
@@ -41,12 +44,14 @@
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/tex/latex/jknappen/mathrsfs.sty" 930764892 300 12fa6f636b617656f2810ee82cb05015 ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/tex/latex/jknappen/ursfs.fd" 930764886 548 cc4e3557704bfed27c7002773fad6c90 ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/tex/latex/l3backend/l3backend-pdftex.def" 1751005717 30351 a2b09edc6c93a742566b222c33d0278e ""
+  "C:/Users/Vicente/repo/ForestLandscapes/plots/decay_flush.png" 1758834252 5457 45b59d3270c580e6952cae98ff99d066 ""
+  "C:/Users/Vicente/repo/ForestLandscapes/plots/doubleLogistic_phased.png" 1758835155 6425 ad58debe6db015d179e467ee044e9573 ""
   "C:/Users/Vicente/repo/ForestLandscapes/plots/simulated_2021_shifted.png" 1758747072 69508 b2e71ceb14997f503f566dd89f2b840f ""
   "C:/Users/Vicente/repo/ForestLandscapes/plots/simulated_smooth.png" 1758746101 19408 ac9a26dbd9d1523f0f408bb72bb1a3cd ""
   "C:/Users/Vicente/repo/ForestLandscapes/plots/simulated_synchronous.png" 1758744667 108289 04d19ce9023f85a79d5befc88d9dd5ba ""
-  "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" 1758747370 9604 8f2587dbc207f615edb22a94d839f05f ""
-  "interpolationProblem.aux" 1758747372 1795 dab7b7d788aa7fb877891a1db7051f5c "pdflatex"
-  "interpolationProblem.tex" 1758747370 9604 8f2587dbc207f615edb22a94d839f05f ""
+  "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" 1758835475 13605 ae0f0904b4143f2d2268f2b7fdb79f59 ""
+  "interpolationProblem.aux" 1758835477 2363 5cafcb6589eae8c063c0b55785c8f027 "pdflatex"
+  "interpolationProblem.tex" 1758835475 13605 ae0f0904b4143f2d2268f2b7fdb79f59 ""
   (generated)
   "interpolationProblem.aux"
   "interpolationProblem.log"
