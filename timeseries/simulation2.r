@@ -142,67 +142,36 @@ ggplot(newdata, aes(x = day, y = pred_mean)) +
 
 ##i need to pool all curves, one per year under the same grid
 
-simulated$phenoDate<- as.Date(simulated$day, origin=as.Date(paste0(simulated$year,"-10-01"))-1) #shift origin to oct 1
-simulated$phenoDay<- yday(simulated$phenoDate)
 
-windows()
-ggplot(simulated, aes(x=phenoDay, y=observed_leafing, color=as.factor(year)))+
-  geom_point()+
-  theme_minimal()
+simulated<- read.csv("timeseries\\simulated_phenophase_data.csv")
 
+simulated<- simulated %>%
+  mutate(y_norm= pmin(pmax(observed_leafing / 100, 1e-4), 1 - 1e-4),
+         day= yday(date),
+         year= as.factor(year(date))
 
-View(simulated)
+# we will fit a decay and a growth curve to each year
 
-years<- simulated$year %>% unique()
-print(years)
+form<- bf(
+  y_norm ~ (1 - (1 / (1 + exp(-kd * (day - td))))) + (1 / (1 + exp(-kf * (day - tf)))),
+  kd + td + kf + tf ~ 1 + (1|year),
+  nl = TRUE
+)
 
-# we are assuming all trees are synchronous
-for(i in 1:length(years)){
-  year_i<- years[i]
-  print(year_i)
-  subset<- simulated %>% filter(year==year_i)
-  unique_days <- sort(unique(subset$phenoDay))
-  values_at_unique_days <- sapply(unique_days, function(d) {
-    mean(subset$observed_leafing[subset$phenoDay == d], na.rm = TRUE)  # taking the mean only works if trees are synchronous, a second loop is neccessary if not. 
-  })
-  print(head(values_at_unique_days))
-  print(head(unique_days))
-  idx_low <- which(values_at_unique_days < 50)[1]      # Index of the first value below 50
-  idx_high <- idx_low - 1                             # Index of the last value above 50
-  x_low <- unique_days[idx_low]
-  x_high <- unique_days[idx_high]
-  y_low <- values_at_unique_days[idx_low]
-  y_high <- values_at_unique_days[idx_high]
-  # Linear interpolation
-  x_at_50 <- x_high + (50 - y_high) * (x_low - x_high) / (y_low - y_high)
-  print(paste("Year:", year_i, "Day at 50% leafing:", x_at_50))
+priors <- c(
+  prior(normal(1, 0.5), nlpar = "kd"),
+  prior(normal(20, 10), nlpar = "td"),
+  prior(normal(1, 0.5), nlpar = "kf"),
+  prior(normal(50, 10), nlpar = "tf")
+)
 
-  #now we set subset at x_at_50 to 0 in a new variable called daycentered
-  subset$daycentered<- subset$phenoDay - x_at_50
-  
-  #append to a new dataframe
-  if(i==1){
-    subset_all<- subset
-  } else{
-    subset_all<- rbind(subset_all, subset)
-  }
-}
+get_prior(form, data = simulated, family = Beta())
 
-
-#now we crop to stay with -30 and +40 days
-subset_all_cropped<- subset_all %>% filter(daycentered>=-40 & daycentered<=40)
-
-windows()
-ggplot(subset_all_cropped, aes(x=daycentered, y=observed_leafing, color=as.factor(year)))+
-  geom_point()+
-  theme_minimal()
-
-#now we fit a model to the pooled data
-length(unique(subset_all_cropped$daycentered))
-fit_pooled <- brm(
-  y_norm ~ s(daycentered,k=20),
-  data = subset_all_cropped,
+fit_double_logistic<- brm(
+  form,
+  data = simulated,
   family = Beta(),
+  prior = priors,
   chains = 4,
   iter = 4000,
   warmup = 1000,

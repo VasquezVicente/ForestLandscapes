@@ -1,8 +1,6 @@
 library(pacman)
 p_load(dplyr, lubridate, ggplot2,brms)
 
-
-
 f_decay <- function(values, k_d, t_d){
     1/ (1 + exp(k_d *(values - t_d)))
 }
@@ -51,8 +49,10 @@ simulated<- simulated %>%
 
 
 priors <- c(
-    prior(normal(25, 15), nlpar = "td"),
-    prior(normal(50, 15), nlpar = "tf")
+  prior(normal(25, 2), nlpar = "td"),  # ~95% in [10, 40]
+  prior(normal(50, 2), nlpar = "tf"),    # ~95% in [30, 70]
+  prior(normal(0.8, 0.2), nlpar = "kd"),
+  prior(normal(0.8, 0.2), nlpar = "kf")
 )
 
 doubleLogisticPhased<- brm(
@@ -66,3 +66,69 @@ doubleLogisticPhased<- brm(
     chains= 4,
     cores= 4
 )
+
+post <- as_draws_df(doubleLogisticPhased)
+colnames(post)
+
+# Select the intercept and year effects
+td_post <- post %>%
+  select(
+    "b_td_Intercept",
+    "r_year__td[2018,Intercept]",
+    "r_year__td[2019,Intercept]",
+    "r_year__td[2020,Intercept]",
+    "r_year__td[2021,Intercept]",
+    "r_year__td[2022,Intercept]",
+    "r_year__td[2023,Intercept]",
+    "r_year__td[2024,Intercept]"
+  )
+
+# Pivot to long format
+td_calc <- td_post %>%
+  mutate(
+    td_2018 = b_td_Intercept + `r_year__td[2018,Intercept]`,
+    td_2019 = b_td_Intercept + `r_year__td[2019,Intercept]`,
+    td_2020 = b_td_Intercept + `r_year__td[2020,Intercept]`,
+    td_2021 = b_td_Intercept + `r_year__td[2021,Intercept]`,
+    td_2022 = b_td_Intercept + `r_year__td[2022,Intercept]`,
+    td_2023 = b_td_Intercept + `r_year__td[2023,Intercept]`,
+    td_2024 = b_td_Intercept + `r_year__td[2024,Intercept]`
+  ) %>%
+  select(starts_with("td_"))
+
+# Pivot to long format
+td_long <- td_calc %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "year",
+    values_to = "td"
+  ) %>%
+  mutate(year = gsub("td_", "", year))
+
+# Plot histograms
+windows()
+ggplot(td_long, aes(x = td, fill = year)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 100) +
+  theme_minimal() +
+  labs(x = "td posterior", y = "Frequency", fill = "Year") +
+  scale_fill_brewer(palette = "Set1")+
+  xlim(0,50)
+
+
+#how late is td 2021 compared to all other years?
+# Test if 2021 is later than 2020
+
+post <- as_draws_df(doubleLogisticPhased)
+
+td_2021 <- post$b_td_Intercept + post$`r_year__td[2021,Intercept]`
+td_2020 <- post$b_td_Intercept + post$`r_year__td[2020,Intercept]`
+
+diff_2021_2020 <- td_2021 - td_2020
+
+# posterior probability that 2021 is later than 2020
+mean(diff_2021_2020 > 0)
+
+mean(diff_2021_2020 )
+
+# summary
+quantile(diff_2021_2020, c(0.025, 0.5, 0.975))

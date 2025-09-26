@@ -51,9 +51,7 @@ plt.legend()
 plt.xlim(5, 80)
 plt.show()
 
-plt.plot(df_true_all_years['date'], df_true_all_years['leafing'], label='Leaf Drop Pattern (with 2021 shifted)')
-plt.legend()
-plt.show()
+
 ##############
 
 #species called platypoidium petandra has a true leaf dropped pattern defined as below and it is completely synchronous across all individuals.
@@ -170,16 +168,6 @@ df_observed['date_num'] = (df_observed['date'] - df_observed['date'].min()).dt.d
 df_observed['dayYear'] = df_observed['date'].dt.dayofyear
 df_observed['year']= df_observed['date'].dt.year
 # Color by different tree
-plt.figure(figsize=(12, 6))
-for tree in df_observed['tree'].unique():
-        subset = df_observed[df_observed['tree'] == tree]
-        plt.plot(subset['date'], subset['observed_leafing'], label=f'Tree {tree}')
-#plt.scatter(df_true['time'], df_true['leafing'], color='black', label='True Pattern', zorder=5)
-plt.plot(df_true_all_years['date'], df_true_all_years['leafing'], color='black', label='True Pattern', zorder=5)
-plt.xlabel('Day')
-plt.ylabel('Leafing')
-plt.title('Observed Data Colored by Tree')
-plt.show()
 
 plt.figure(figsize=(12, 6))
 for year in df_true_all_years['year'].unique():
