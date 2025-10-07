@@ -14,15 +14,81 @@ from timeseries.utils import create_consensus_polygon
 from timeseries.utils import create_overlap_density_map
 from timeseries.utils import generate_leafing_pdf
 import matplotlib.pyplot as plt
+import pickle
+
+
 
 #load polygons
-
 data_path=r"\\stri-sm01\ForestLandscapes\UAVSHARE\BCI_50ha_timeseries"                 ## path to the data folder
+crown_segmentation_check_path=os.path.join(data_path,'videos\cavallinesia_crown_check')
+os.makedirs(crown_segmentation_check_path, exist_ok=True)
 path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")                         ## orthomosaics locally aligned location 
 path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")  ## location of the timeseries of polygons
 crowns=gpd.read_file(path_crowns)                                                      ## read the file using geopandas
 crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")       ## polygon ID defines the identity of tree plus date it was taken
-species_subset= crowns[crowns['latin']=='Chrysophyllum cainito'].reset_index()         ## geodataframe to be used as template to extract features
+species_subset= crowns[crowns['latin']=='Dipteryx oleifera'].reset_index() 
+####################################################################################################################
+################correct the polygons before extracting the features##################################################
+unique_globalids = species_subset['GlobalID'].unique()
+all_gid_polygons = []
+for gid in unique_globalids:
+    subset = species_subset[species_subset['GlobalID'] == gid]
+    grid_size = 0.1
+    x_coords, y_coords, density_matrix = create_overlap_density_map(subset, grid_size=grid_size)
+    consensus_polygon = create_consensus_polygon(x_coords, y_coords, density_matrix)
+
+    #this now plots correctly aligned
+    fig, ax = plt.subplots(figsize=(10, 10))
+    extent = [subset.total_bounds[0], subset.total_bounds[2], subset.total_bounds[1], subset.total_bounds[3]]
+    im = ax.imshow(density_matrix, extent=extent, origin='lower', cmap='hot', alpha=0.7)
+    subset['geometry'].plot(ax=ax, edgecolor='white', facecolor='none', alpha=0.8, linewidth=1)
+    #plot concensus polygon if it exists
+    if consensus_polygon is not None:
+        gpd.GeoSeries(consensus_polygon).plot(ax=ax, edgecolor='blue', facecolor='none', linewidth=2)
+    plt.colorbar(im, ax=ax, label='Overlap Count')
+    plt.title(f"Density Map with Polygons - {gid}")
+    plt.show()
+
+    # Calculate Hausdorff distances and replace high-distance polygons
+    if consensus_polygon is not None:
+        # First loop: calculate Hausdorff distances
+        for idx, row in subset.iterrows():
+            poly = row['geometry']
+            distance = poly.hausdorff_distance(consensus_polygon)
+            subset.loc[idx, 'hausdorff_distance'] = distance
+            print(f"Polygon has Hausdorff distance: {distance:.2f}")
+
+        # Calculate statistics for outlier detection
+        distances = subset['hausdorff_distance']
+        mean_distance = distances.mean()
+        std_distance = distances.std()
+
+        final_threshold= mean_distance + 1 * std_distance
+        
+        # Use the more conservative threshold
+
+        print(f"Mean Hausdorff distance for {gid}: {mean_distance:.2f}")
+        print(f"Standard deviation: {std_distance:.2f}")
+        print(f"Z-score threshold (μ + 1.5σ): {final_threshold:.2f}")
+        print(f"Final threshold used: {final_threshold:.2f}")
+        
+        # Second loop: replace only significant outliers
+        replacements_made = 0
+        for idx, row in subset.iterrows():
+            if row['hausdorff_distance'] > final_threshold:
+                print(f"Polygon with GlobalID {gid} has high Hausdorff distance: {row['hausdorff_distance']:.2f} - REPLACING")
+                subset.loc[idx, 'geometry'] = consensus_polygon
+                replacements_made += 1
+        
+        print(f"Replaced {replacements_made}/{len(subset)} polygons ({replacements_made/len(subset)*100:.1f}%)")
+
+    #generate_leafing_pdf(subset, os.path.join(crown_segmentation_check_path, f"{gid}.pdf"), path_ortho, crowns_per_page=12, variables=['hausdorff_distance', 'date'])
+    subset['area'] = subset['geometry'].area
+    all_gid_polygons.append(subset)
+
+final_gdf = gpd.GeoDataFrame(pd.concat(all_gid_polygons, ignore_index=True), crs=subset.crs)
+final_gdf.columns
+
 
 ## adding analysis of shape and size of the crown
 A_inv=np.array([[ 0.00174702,  0.01227676, -0.01372143],   #green vegetation endpoint 
@@ -42,7 +108,7 @@ for orthomosaic in list_ortho:
     print(f"Processing orthomosaic: ", orthomosaic)
     date = "_".join(orthomosaic.split("_")[2:5])
     with rasterio.open(os.path.join(data_path,'orthomosaic_aligned_local',orthomosaic)) as src:
-        polygons_date= species_subset[species_subset['date']==date]
+        polygons_date= final_gdf[final_gdf['date']==date]
         for idx, row in polygons_date.iterrows():
             counter += 1
             print(f"  Processed rows: {counter}", end='\r')  # keep it clean in the terminal
@@ -99,24 +165,85 @@ for orthomosaic in list_ortho:
             entropyM=np.nanmean(entropy_image)
             elevSD= np.nanstd(elev)
 
-            species_subset.at[idx, 'rccM'] = rccM
-            species_subset.at[idx, 'gccM'] = gccM
-            species_subset.at[idx, 'bccM'] = bccM
-            species_subset.at[idx, 'ExGM'] = ExGM
-            species_subset.at[idx, 'gvM'] = gvM
-            species_subset.at[idx, 'npvM'] = npvM
-            species_subset.at[idx, 'shadowM'] = shadowM
-            species_subset.at[idx, 'rSD'] = rSD
-            species_subset.at[idx, 'gSD'] = gSD
-            species_subset.at[idx, 'bSD'] = bSD
-            species_subset.at[idx, 'ExGSD'] = ExGSD
-            species_subset.at[idx, 'gvSD'] = gvSD
-            species_subset.at[idx, 'npvSD'] = npvSD
-            species_subset.at[idx, 'gcorSD'] = gcorSD
-            species_subset.at[idx, 'gcorMD'] = gcorMD
-            species_subset.at[idx, 'entropy']= entropyM
-            species_subset.at[idx, 'elevSD']= elevSD
+            final_gdf.at[idx, 'rccM'] = rccM
+            final_gdf.at[idx, 'gccM'] = gccM
+            final_gdf.at[idx, 'bccM'] = bccM
+            final_gdf.at[idx, 'ExGM'] = ExGM
+            final_gdf.at[idx, 'gvM'] = gvM
+            final_gdf.at[idx, 'npvM'] = npvM
+            final_gdf.at[idx, 'shadowM'] = shadowM
+            final_gdf.at[idx, 'rSD'] = rSD
+            final_gdf.at[idx, 'gSD'] = gSD
+            final_gdf.at[idx, 'bSD'] = bSD
+            final_gdf.at[idx, 'ExGSD'] = ExGSD
+            final_gdf.at[idx, 'gvSD'] = gvSD
+            final_gdf.at[idx, 'npvSD'] = npvSD
+            final_gdf.at[idx, 'gcorSD'] = gcorSD
+            final_gdf.at[idx, 'gcorMD'] = gcorMD
+            final_gdf.at[idx, 'entropy'] = entropyM
+            final_gdf.at[idx, 'elevSD'] = elevSD
 
 
-species_subset=species_subset.drop(columns=['geometry'])
-species_subset.to_csv(r"timeseries/dataset_predictions/cainito_sgbt.csv")
+final_gdf=final_gdf.drop(columns=['geometry'])
+final_gdf.to_csv(r"timeseries/dataset_predictions/dipteryx_sgbt.csv")
+
+
+with open(r'timeseries/models/xgb_model.pkl', 'rb') as file:
+      model = pickle.load(file)
+#with open(r'timeseries/models/xgb_model_flower.pkl', 'rb') as file:
+#      model_flower = pickle.load(file)
+
+data=pd.read_csv(r"timeseries/dataset_predictions/dipteryx_sgbt.csv")
+
+
+X=data[['rccM', 'gccM', 'bccM', 'ExGM', 'gvM', 'npvM', 'shadowM','rSD', 'gSD', 'bSD',     #features for prediction
+       'ExGSD', 'gvSD', 'npvSD', 'gcorSD', 'gcorMD','entropy','elevSD']]
+
+Y= data[['area', 'score', 'tag', 'GlobalID', 'iou',                                        #identifiers
+       'date', 'latin', 'polygon_id']]
+
+X_predicted=model.predict(X)                                                      #predictions
+#X_predict_flower= model_flower.predict(X)
+
+df_final = Y.copy()  # Copy Y to keep the same structure
+df_final['leafing_predicted'] = X_predicted
+#df_final['isFlowering_predicted'] = X_predict_flower
+
+
+#lets bring in the actual labels to clean it up
+training_dataset=pd.read_csv(r"timeseries/dataset_training/train_sgbt.csv")
+merged_final= df_final.merge(training_dataset[['polygon_id','leafing']], on='polygon_id', how='left')
+
+#flowering correction
+flower_correction=pd.read_csv(r"timeseries/dataset_corrections/flower_out.csv")
+final= merged_final.merge(flower_correction[['polygon_id','isFlowering','isFruiting']], on='polygon_id', how='left')
+
+
+final['isFlowering']= final['isFlowering'].fillna('no')
+final['isFlowering'].value_counts()
+final['isFruiting']= final['isFruiting'].fillna('no')
+final['isFruiting'].value_counts()
+
+
+
+final['leafing'] = np.where(
+    (final['isFlowering'] == 'yes') | 
+    (final['isFruiting'] == 'maybe') | 
+    (final['isFlowering'] == 'maybe') | 
+    (final['isFruiting'] == 'yes'),
+    100,
+    final['leafing']
+)
+
+final['leafing'] = final['leafing'].fillna(final['leafing_predicted'])
+
+
+
+final['date'] = pd.to_datetime(final['date'], format='%Y_%m_%d')
+final['dayYear'] = final['date'].dt.dayofyear
+final['year'] = final['date'].dt.year
+final['date_num'] = (final['date'] - final['date'].min()).dt.days
+
+
+final.to_csv(r"timeseries/dataset_extracted/dipteryx.csv")
+
