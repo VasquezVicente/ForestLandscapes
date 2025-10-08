@@ -249,4 +249,273 @@ In R we can write the phase function and the full double logistic function as:
     \label{fig:double_logistic_leaf_coverage}
 \end{figure}
 
+So, let's write it up in brms.
+
+\begin{verbatim}
+    form <- bf(
+    y_norm ~ (1 - ( 1 / (1 + exp(-0.5 * (day - (td + tf)/2))))) *
+    ( 1 / (1 + exp(kd * (day - td)))) +
+    (1 / (1 + exp(-0.5 * (day - (td + tf)/2)))) *
+    (1 / (1 + exp(-kf * (day - tf)))),
+    kd + kf + td + tf ~ 1 + (1 | year),
+    nl = TRUE)
+
+    priors <- c(
+    prior(normal(25, 2), nlpar = "td"),  # ~95% in [10, 40]
+    prior(normal(50, 2), nlpar = "tf"),    # ~95% in [30, 70]
+    prior(normal(0.8, 0.2), nlpar = "kd"),
+    prior(normal(0.8, 0.2), nlpar = "kf")
+    )
+
+    doubleLogisticPhased<- brm(
+        form,
+        data = simulated,
+        family = Beta(),
+        prior = priors,
+        control = list(adapt_delta = 0.95, max_treedepth = 15),
+        iter= 4000,
+        warmup= 2000,
+        chains= 4,
+        cores= 4
+    )
+\end{verbatim}
+
+
+After some data frame wrangling we can plot the posterior distribution of the parameter
+for $t_d$ which in this case signifies the inflection point of the leaf drop event.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth, height=0.4\textheight, keepaspectratio]{C:/Users/Vicente/repo/ForestLandscapes/plots/td_posterior.png}
+    \caption{Posterior distribution of the parameter $t_d$ for each year. Notice that 2021 has a posterior distribution shifted to the right, indicating a later leaf drop event.}
+    \label{fig:td_posterior}
+\end{figure}
+
+We can test a hypothesis by taking the difference of the posterior distributions of $t_d$ for 2021 and all other years.
+\begin{verbatim}
+    td_long_2021<- td_long %>% filter(year=="2021")
+    td_long_not_2021<- td_long %>% filter(year!="2021")
+    years_others<- unique(td_long_not_2021$year)
+
+    for (i in 1:length(years_others)) {
+        ref_values <- td_long_not_2021 %>% filter(year == years_others[i]) %>% pull(td)
+        diff<- td_long_2021$td - ref_values
+        print(paste("Pr(td2021 > td", years_others[i], ") =", round(mean(diff > 0), 3)))
+        print(quantile(diff, probs=c(0.025, 0.5, 0.975)))
+    }
+    [1] "Pr(td2021 > td 2018 ) = 0.641"
+        2.5%        50%      97.5%
+    -7.3418307  0.7626829 23.7579312
+    [1] "Pr(td2021 > td 2019 ) = 0.746"
+        2.5%       50%     97.5%
+    -4.245506  2.748767 29.318359
+    [1] "Pr(td2021 > td 2020 ) = 0.747"
+        2.5%       50%     97.5%
+    -4.287576  2.637999 29.643458
+    [1] "Pr(td2021 > td 2022 ) = 0.706"
+        2.5%       50%     97.5%
+    -3.529688  2.654654 28.601176
+    [1] "Pr(td2021 > td 2023 ) = 0.663"
+        2.5%       50%     97.5%
+    -4.309944  1.924723 27.771528
+    [1] "Pr(td2021 > td 2024 ) = 0.636"
+        2.5%       50%     97.5%
+    -5.085629  1.321426 19.839795
+\end{verbatim}
+
+The closest difference is between 2021 and 2020 which indicates a 74.7\% probability that $t_d$ in 2021 is greater than $t_d$ in 2020. 
+The median difference is 2.64 days and the 95\% credible interval is [-4.29, 29.64]. which is plausible given the sparse observations.
+
+\subsection{Simulation Example 3. Asynchronous Trees}
+
+All trees are synchronous with the exception of tree E which drops its leaves 5 days later than the rest of the trees every year.
+All trees drop their leaves at the same time every year, with the exception of year 2021 in which all trees drop their leaves 10 days later than usual.
+Thus tree E drops its leaves 15 days later than the rest of the trees in 2021.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{C:/Users/Vicente/repo/ForestLandscapes/plots/simulation_intra.png}
+    \caption{Simulated leaf coverage observations for 20 trees observed at the dates in $T$. The solid purple line represents the true leafing for tree E, light blue represents the true leafing for all other trees.}
+    \label{fig:interpolation_problem_asynchronous_trees}
+\end{figure}
+
+For this case we can modify the previous model to include a random effect of individual tree in all the parameters.
+
+\begin{verbatim}
+    form <- bf(
+    y_norm ~ (1 - ( 1 / (1 + exp(-0.5 * (day - (td + tf)/2))))) *
+    ( 1 / (1 + exp(kd * (day - td)))) +
+    (1 / (1 + exp(-0.5 * (day - (td + tf)/2)))) *
+    (1 / (1 + exp(-kf * (day - tf)))),
+    kd + kf + td + tf ~ 1 + (1 | year) + (1 | tree),
+    nl = TRUE)
+
+    priors <- c(
+    prior(normal(25, 2), nlpar = "td"), 
+    prior(normal(50, 2), nlpar = "tf"),    
+    prior(normal(0.8, 0.2), nlpar = "kd"),
+    prior(normal(0.8, 0.2), nlpar = "kf")
+    )
+    doubleLogisticPhased_intra<- brm(
+        form,
+        data = simulated,
+        family = Beta(),
+        prior = priors,
+        control = list(adapt_delta = 0.95, max_treedepth = 15),
+        iter= 4000,
+        warmup= 2000,
+        chains= 4,
+        cores= 4
+    )
+\end{verbatim}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth, height=0.4\textheight, keepaspectratio]{C:/Users/Vicente/repo/ForestLandscapes/plots/asynchronous_td_bimodal.png}
+    \caption{Posterior distribution of the parameter $t_d$ for each year.}
+    \label{fig:td_posterior_intra}
+\end{figure}
+
+The model detects two peaks in the posterior distribution of $t_d$ for the year 2021.
+One mode corresponds to the actual simulated value of +30 DOY and the other mode corresponds to the usual value of +20 DOY.
+This demostrates that the model has not rejected the possibility of year 2021 being synchronous.
+Notice year 2024 having narrower posterior distribution due to the weekly observations.
+This demostrates we are more certain about the timing of leaf drop event in years with more frequent observations.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth, height=0.4\textheight, keepaspectratio]{C:/Users/Vicente/repo/ForestLandscapes/plots/asynchronous_td_tree.png}
+    \caption{Posterior distribution of the parameter $t_d$ for trees.}
+    \label{fig:td_posterior_treeE}
+\end{figure}
+
+The model does not detect a difference in the posterior distribution of $t_d$ for tree E.
+One possible reason for this is that a 5 day difference is too small to be detected given the sparse observations.
+Another possible reason is that the model is giving a each tree an intercept and each year an intercept but not allowing for interaction between tree and year.
+
+We will evaluate this by creating a new model with an interaction between tree and year in the parameter $t_d$.
+
+\begin{verbatim}
+    form <- bf(
+    y_norm ~ (1 - ( 1 / (1 + exp(-0.5 * (day - (td + tf)/2))))) *
+     ( 1 / (1 + exp(kd * (day - td)))) +
+     (1 / (1 + exp(-0.5 * (day - (td + tf)/2)))) *
+     (1 / (1 + exp(-kf * (day - tf)))),
+     kd + kf + td + tf ~ 1 + (1 | treeYear) ,
+     nl = TRUE)
+
+    simulated<- read.csv("timeseries\\simulated_phenophase_data.csv")
+    simulated<- simulated %>%
+        mutate(day= yday(date),
+                year= year(date),
+                y_norm = pmin(pmax(observed_leafing / 100, 1e-4), 1 - 1e-4),
+                treeYear= paste(tree, year, sep="_"))
+    doubleLogisticPhased<- brm(
+    form,
+    data = simulated,
+    family = Beta(),
+    prior = priors,
+    control = list(adapt_delta = 0.95, max_treedepth = 15),
+    iter= 4000,
+    warmup= 2000,
+    chains= 4,
+    cores= 4
+
+    post<- as_draws_df(doubleLogisticPhased)
+    colnames_post<- colnames(post)
+    post_td<- post[,grep("td", colnames_post)]
+    post_td_2021_long<- as.data.frame(post_td) %>%
+    pivot_longer(
+        cols= everything(),
+        names_to= "td_name",
+        values_to= "td"
+    ) %>% 
+    mutate(tree= gsub("r_treeYear__td\\[([A-Z])_.*", "\\1", td_name),
+            year= gsub("r_treeYear__td\\[[A-Z]_(\\d{4}),.*", "\\1", td_name))%>%
+        filter(year %in% c(2018,2019,2020,2021,2022,2023,2024))
+
+    ggplot(post_td_2021_long, aes(x=td, fill=year))+
+    geom_histogram(bins=200)+
+    facet_wrap(~tree, ncol=1, scales = "fixed")+
+        xlim(-5,5)+
+        theme(strip.text = element_blank())
+)
+\end{verbatim}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth, height=0.4\textheight, keepaspectratio]{C:/Users/Vicente/repo/ForestLandscapes/plots/interaction_model.png}
+    \caption{Posterior distribution of the parameter $t_d$ for trees and years. Years are stacked and each tree is a separate facet.}
+    \label{fig:td_posterior_treeE_year}
+\end{figure}
+
+No difference between years or trees is detected. We might getting spreaded too thin with the interaction, 20 trees, 7 years gives us 140 levels of the random effect. Each group has 4 parameters to estimate, $k_d$, $k_f$, $t_d$ and $t_f$.
+This gives us a total of 560 parameters to estimate.
+This is probably too much for the data we have.
+Let's try a different model where we fit a fixed effect for year to effectively give each year its own curve and a random effect for tree to give each tree its own intercept.
+
+
+This one time we simulate the $t_d$ parameter for tree E to be at DOY 48 in all years except in 2021 where it is at DOY 58.
+All other trees have $t_d$ at DOY 43 and 10 days later in 2021 at DOY 53.
+
+\begin{verbatim}
+    
+form <- bf(
+    y_norm ~ (1 - ( 1 / (1 + exp(-0.5 * (day - (td + tf)/2))))) *
+    ( 1 / (1 + exp(kd * (day - td)))) + (1 / (1 + exp(-0.5 *
+    (day - (td + tf)/2)))) * (1 / (1 + exp(-kf * (day - tf)))),
+    kd + kf + td + tf ~ year + (1 | tree),
+    nl = TRUE)
+
+    priors <- c(
+    prior(normal(42, 3), nlpar = "td"),  
+    prior(normal(62, 3), nlpar = "tf"),    
+    prior(normal(0.8, 0.2), nlpar = "kd"),
+    prior(normal(0.8, 0.2), nlpar = "kf")
+    )
+
+    doubleLogisticPhased<- brm(
+    form,
+    data = simulated,
+    family = Beta(),
+    prior = priors,
+    control = list(adapt_delta = 0.95, max_treedepth = 15),
+    iter= 4000,
+    warmup= 2000,
+    chains= 4,
+    cores= 4
+    )
+\end{verbatim}
+
+We have dropped the year 2018 since it has no observations during the leaf drop event.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth, height=0.4\textheight, keepaspectratio]{C:/Users/Vicente/repo/ForestLandscapes/plots/fixeradnomdouble.png}
+    \caption{Posterior distribution of the parameter $t_d$ for each year.}
+    \label{fig:td_posterior_treeE_year_fixed}
+\end{figure}
+
+The Intercept year corresponds to 2019 a its estimate is around 18 DOY which is 25 days before the actual simulated value of 43 DOY.
+all other years roughly approximate the simulated value of 43, and 2021 does not show a shift in time. 
+\begin{verbatim}
+    Yearly Effects:
+                  Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+    td_Intercept    18.53     10.35     9.81    40.38 1.54        7       33
+    td_year2020     40.60      2.34    35.95    45.41 1.06       59       94
+    td_year2021     40.07      2.39    35.57    44.89 1.09       35       66
+    td_year2022     39.02      2.35    34.28    44.19 1.13       22       43
+    td_year2023     33.40      4.17    28.24    42.61 1.53        7       37
+    td_year2024     33.72      4.04    28.63    42.95 1.53        7       37
+\end{verbatim}
+
+Now examine the random effect of tree.
+No shift was detected for tree E.
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth, height=0.4\textheight, keepaspectratio]{C:/Users/Vicente/repo/ForestLandscapes/plots/randomdoubled.png}
+    \caption{Posterior distribution of the parameter $t_d$ for trees.}
+    \label{fig:td_posterior_tree_fixed}
+\end{figure}
+
 \end{document}

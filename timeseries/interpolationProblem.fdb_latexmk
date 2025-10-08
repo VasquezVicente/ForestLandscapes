@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1758835476.6451 "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" "interpolationProblem.pdf" "interpolationProblem" 1758835477.51336 0
+["pdflatex"] 1759761822.07116 "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" "interpolationProblem.pdf" "interpolationProblem" 1759761823.3643 0
   "C:/Users/Vicente/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map" 1758123708 80909 eab91d9745dd2edfd62a31d53cd5fe15 ""
   "C:/Users/Vicente/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/tcrm1000.pk" 1756742404 11548 a22208732612d4c820a81fc0f3a8a16f ""
   "C:/Users/Vicente/AppData/Local/MiKTeX/fonts/tfm/public/rsfs/rsfs10.tfm" 1756745809 688 37338d6ab346c2f1466b29e195316aa4 ""
@@ -44,14 +44,21 @@
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/tex/latex/jknappen/mathrsfs.sty" 930764892 300 12fa6f636b617656f2810ee82cb05015 ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/tex/latex/jknappen/ursfs.fd" 930764886 548 cc4e3557704bfed27c7002773fad6c90 ""
   "C:/Users/Vicente/AppData/Local/Programs/MiKTeX/tex/latex/l3backend/l3backend-pdftex.def" 1751005717 30351 a2b09edc6c93a742566b222c33d0278e ""
+  "C:/Users/Vicente/repo/ForestLandscapes/plots/asynchronous_td_bimodal.png" 1759336268 38566 4facfc84ed6ea9eff07b578bbd0a55d2 ""
+  "C:/Users/Vicente/repo/ForestLandscapes/plots/asynchronous_td_tree.png" 1759352620 36626 dc86ab2967fcde8799abcaea766191a1 ""
   "C:/Users/Vicente/repo/ForestLandscapes/plots/decay_flush.png" 1758834252 5457 45b59d3270c580e6952cae98ff99d066 ""
   "C:/Users/Vicente/repo/ForestLandscapes/plots/doubleLogistic_phased.png" 1758835155 6425 ad58debe6db015d179e467ee044e9573 ""
+  "C:/Users/Vicente/repo/ForestLandscapes/plots/fixeradnomdouble.png" 1759761301 35716 ffadbaa2665c2ce8b4341167d302e646 ""
+  "C:/Users/Vicente/repo/ForestLandscapes/plots/interaction_model.png" 1759413657 57447 abbecaa31614adfbf3fe9f85c1260fb0 ""
+  "C:/Users/Vicente/repo/ForestLandscapes/plots/randomdoubled.png" 1759761705 42265 b07808d10dd7c43071960cba6ed92b90 ""
   "C:/Users/Vicente/repo/ForestLandscapes/plots/simulated_2021_shifted.png" 1758747072 69508 b2e71ceb14997f503f566dd89f2b840f ""
   "C:/Users/Vicente/repo/ForestLandscapes/plots/simulated_smooth.png" 1758746101 19408 ac9a26dbd9d1523f0f408bb72bb1a3cd ""
   "C:/Users/Vicente/repo/ForestLandscapes/plots/simulated_synchronous.png" 1758744667 108289 04d19ce9023f85a79d5befc88d9dd5ba ""
-  "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" 1758835475 13605 ae0f0904b4143f2d2268f2b7fdb79f59 ""
-  "interpolationProblem.aux" 1758835477 2363 5cafcb6589eae8c063c0b55785c8f027 "pdflatex"
-  "interpolationProblem.tex" 1758835475 13605 ae0f0904b4143f2d2268f2b7fdb79f59 ""
+  "C:/Users/Vicente/repo/ForestLandscapes/plots/simulation_intra.png" 1759338897 75545 a31c32218fc0414724cbb820a3fa3223 ""
+  "C:/Users/Vicente/repo/ForestLandscapes/plots/td_posterior.png" 1759008834 25197 256f62f55a1b0e75e9ef35ee4b5f0dc7 ""
+  "c:/Users/Vicente/repo/ForestLandscapes/timeseries/interpolationProblem.tex" 1759761820 25128 3273f6b1a2b14a353c2a394d1a4c205e ""
+  "interpolationProblem.aux" 1759761823 4380 699af9ce13836c2f63958e83412f2a89 "pdflatex"
+  "interpolationProblem.tex" 1759761820 25128 3273f6b1a2b14a353c2a394d1a4c205e ""
   (generated)
   "interpolationProblem.aux"
   "interpolationProblem.log"
