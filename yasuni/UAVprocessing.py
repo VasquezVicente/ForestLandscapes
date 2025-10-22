@@ -13,7 +13,7 @@ for idx, d in enumerate(dirs, 1):
 
 choice = int(input("Enter the number of the directory to process: ")) - 1
 selected_dir = dirs[choice]
-project_path = r"D:\Yasuni\ECUADOR_yasuni_2019_07_02_P4P\ECUADOR_yasuni_2019_07_02_P4P.psx"
+project_path = r"D:\Yasuni\ECUADOR_yasuni_2019_05_29_P4P\ECUADOR_yasuni_2019_05_29_P4P.psx"
 
 doc = Metashape.Document()
 doc.open(project_path)
@@ -41,8 +41,7 @@ for photo in chunk.cameras:
 
 list_projects= [r"D:\Yasuni\ECUADOR_yasuni_2019_05_05_P4P\ECUADOR_yasuni_2019_05_05_P4P.psx",
                 r"D:\Yasuni\ECUADOR_yasuni_2019_05_09_P4P\ECUADOR_yasuni_2019_05_09_P4P.psx",
-                r"D:\Yasuni\ECUADOR_yasuni_2019_05_29_P4P\ECUADOR_yasuni_2019_05_29_P4P.psx",
-                r"D:\Yasuni\ECUADOR_yasuni_2019_07_02_P4P\ECUADOR_yasuni_2019_07_02_P4P.psx"
+                r"D:\Yasuni\ECUADOR_yasuni_2019_05_29_P4P\ECUADOR_yasuni_2019_05_29_P4P.psx"
                 ]
 
 for project_path in list_projects:
@@ -55,26 +54,32 @@ for project_path in list_projects:
     doc.save()
     print(f"Processed project: {project_path}") #break for GCPs
 
-    
+for project_path in list_projects:
+    doc = Metashape.Document()
+    doc.open(project_path)
+    chunk = doc.chunks[0]
+    chunk.buildDepthMaps(downscale = 4, filter_mode = Metashape.ModerateFiltering)
+    doc.save()
 
+    has_transform = chunk.transform.scale and chunk.transform.rotation and chunk.transform.translation
 
+    if has_transform:
+                chunk.buildPointCloud()
+                doc.save()
 
+                chunk.buildDem(source_data=Metashape.PointCloudData)
+                doc.save()
 
+                chunk.buildOrthomosaic(surface_data=Metashape.ElevationData)
+                doc.save()
 
-
-
-
-
-
-
-
-
-
-
+#create an orthoprojection for export
+    doc.save()
+    print('Processing finished')
 
 
 from skimage import io, exposure
-ref_image = r"D:\Yasuni\ECUADOR_yasuni_2019_02_06_P4P\2019_Feb_06_Phantom_Flight_2_431.JPG"
+ref_image = r"D:\Yasuni\ECUADOR_yasuni_2019_05_29_P4P\RGB\2019_May_29_Phantom_Flight_5_91.JPG"
 ref_image= io.imread(ref_image)
 #io.imread(os.path.join(out_path,"DJI_0053.JPG"))
 

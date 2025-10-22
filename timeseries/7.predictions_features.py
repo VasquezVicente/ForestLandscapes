@@ -26,7 +26,7 @@ path_ortho=os.path.join(data_path,"orthomosaic_aligned_local")                  
 path_crowns=os.path.join(data_path,r"geodataframes\BCI_50ha_crownmap_timeseries.shp")  ## location of the timeseries of polygons
 crowns=gpd.read_file(path_crowns)                                                      ## read the file using geopandas
 crowns['polygon_id']= crowns['GlobalID']+"_"+crowns['date'].str.replace("_","-")       ## polygon ID defines the identity of tree plus date it was taken
-species_subset= crowns[crowns['latin']=='Dipteryx oleifera'].reset_index() 
+species_subset= crowns[crowns['latin']=='Hura crepitans'].reset_index() 
 ####################################################################################################################
 ################correct the polygons before extracting the features##################################################
 unique_globalids = species_subset['GlobalID'].unique()
@@ -185,7 +185,7 @@ for orthomosaic in list_ortho:
 
 
 final_gdf=final_gdf.drop(columns=['geometry'])
-final_gdf.to_csv(r"timeseries/dataset_predictions/dipteryx_sgbt.csv")
+final_gdf.to_csv(r"timeseries/dataset_predictions/hura_sgbt.csv")
 
 
 with open(r'timeseries/models/xgb_model.pkl', 'rb') as file:

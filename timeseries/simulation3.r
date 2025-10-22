@@ -5,51 +5,29 @@ f_decay <- function(values, k_d, t_d){
     1/ (1 + exp(k_d *(values - t_d)))
 }
 
-f_flush <- function(values, k_f, t_f){
-    1/ (1 + exp(-k_f * (values - t_f)))
+f_flush <- function(values, k_f, delta, t_d){
+    1/ (1 + exp(-k_f * (values - (t_d + delta))))
 }
 
-f_phase <- function(values, tm){
-    1/ (1 + exp(-0.5 * (values - tm)))   
+f_phase <- function(values, t_d, delta, values){
+    1/ (1 + exp(-0.5 * (values - (t_d + delta/2))))   
 }
 
-values <- seq(0, 70, by=1)
-decay_values <- f_decay(values, k_d=0.8, t_d=20)
-flush_values <- f_flush(values, k_f=0.8, t_f=50)
+values1 <- seq(0, 190, by=1)
 
-
-LC<- function(values, k_d, t_d, k_f, t_f){
-    t_m<- (t_d + t_f) / 2
-    values<- (1-f_phase(values, t_m)) * f_decay(values, k_d, t_d) + f_phase(values, t_m) * f_flush(values, k_f, t_f)
-    return(values)
+LC <- function(values, k_d, k_f, t_d, delta) {
+  result <- ((1 - f_phase(values, t_d, delta, values)) * f_decay(values, k_d, t_d)) +
+        (f_phase(values, t_d, delta, values) * f_flush(values, k_f, delta, t_d))
+  return(result)
 }
 
-LC_values<- LC(values, k_d=0.8, t_d=20, k_f=0.8, t_f=50)
+
+LC_values<- LC(values1, k_d=0.8, k_f=0.8, t_d=30, delta=15)
 
 windows()
-plot(values, LC_values, type='l', col='black', ylim=c(0,1))
+plot(values1, LC_values, type='l', col='black', ylim=c(0,1))
 
-
-
-form_double_reparam <- bf(
-  y_norm ~ (1 - (1 / (1 + exp(-0.5 * (day - (td + delta/2)))))) *
-             (1 / (1 + exp(kd * (day - td)))) +
-           (1 / (1 + exp(-0.5 * (day - (td + delta/2)))) ) *
-             (1 / (1 + exp(-kf * (day - (td + delta))))),
-  kd + kf + td + delta ~ 1 + (1 | pheno_year) + (1 | tree),
-  nl = TRUE
-)
-
-form_double_inter <- bf(
-  y_norm ~ (1 - (1 / (1 + exp(-0.5 * (day - (td + delta/2)))))) *
-             (1 / (1 + exp(kd * (day - td)))) +
-           (1 / (1 + exp(-0.5 * (day - (td + delta/2)))) ) *
-             (1 / (1 + exp(-kf * (day - (td + delta))))),
-  kd + kf + td + delta ~ 1 + (1 | tree_year),
-  nl = TRUE
-)
-
-form_double_fixedRandom <- bf(
+form_main <- bf(
   y_norm ~ (1 - (1 / (1 + exp(-0.5 * (day - (td + delta/2)))))) *
              (1 / (1 + exp(kd * (day - td)))) +
            (1 / (1 + exp(-0.5 * (day - (td + delta/2)))) ) *
@@ -57,6 +35,8 @@ form_double_fixedRandom <- bf(
   kd + kf + td + delta ~ 1 + pheno_year + (1 | tree),
   nl = TRUE
 )
+
+
 
 
 data<- read.csv("timeseries\\dataset_extracted\\cavallinesia.csv")
@@ -80,393 +60,375 @@ data <- data %>%
     tree_year= as.factor(paste0(tree, "_", pheno_year))
   )
 
+#maybe reorder the levels of pheno_year
+priors <- c(
+  prior(normal(110, 8), nlpar = "td", lb = 0),        # centered at 110 days, SD = 4 standard deviation
+  prior(normal(170, 10),  nlpar = "delta", lb = 0),     # centered at 50 days, SD = 8 days
+  prior(normal(0.6, 0.25), nlpar = "kd", lb = 0),
+  prior(normal(0.6, 0.25), nlpar = "kf", lb = 0),
+  prior(exponential(0.4), class = "sd", nlpar = "td"),
+  prior(exponential(0.4), class = "sd", nlpar = "delta") # mean ≈ 0.67
+)
+windows()
+hist(rnorm(8000,0,10), breaks= 100)
+
+td_norm <- data.frame(
+  day = samples <- rnorm(8000, mean = 115, sd = 6)
+)
+delta_norm <- data.frame(
+  duration = samples <- rnorm(8000, mean = 170, sd = 10)
+)
+
+td_quantiles <- quantile(td_norm$day, c(0.05, 0.5, 0.95))
+delta_quantiles <- quantile(delta_norm$duration, c(0.05, 0.5, 0.95))
+
+segments <- data.frame(
+  stat = c("p5", "median", "p95"),
+  start = c(td_quantiles[2], td_quantiles[2], td_quantiles[2]),  # 95%, 50%, 5% of td
+  end = c(td_quantiles[3] + delta_quantiles[1],    # 95% td + 5% delta
+          td_quantiles[2] + delta_quantiles[2],    # 50% td + 50% delta  
+          td_quantiles[1] + delta_quantiles[3]),
+  y_height= c(0.6, 0.5, 0.4)    # 5% td + 95% delta
+)
+print(segments)
 
 windows()
-ggplot(data[data$tree== 134166,], aes(x=day, y=y_norm, color= tree))+
+ggplot(data, aes(x=day, y=y_norm, color=tree))+
   geom_line()+
+  geom_histogram(data= td_norm, aes(x= day, y= (..density..)*10), bins= 100, inherit.aes = FALSE, alpha= 0.9, fill= "gray")+
+  geom_segment(data= segments, aes(x= start, xend= end, y= y_height, yend= y_height, color= stat), size= 2)+
   facet_wrap(~pheno_year)+
-  scale_x_continuous(breaks= seq(0, 365, by=5))+
-  theme(legend.position = "none")
+  theme_minimal()+
+  scale_x_continuous(breaks= seq(0, 365, by=30))+
+  labs(title= "Dipteryx oleifera: Leaf coverage by tree and year",
+       subtitle= "each color is a tree, each panel is a year")+
+  ylab("Leaf coverage (normalized)")+
+  xlab("Days since Oct 1st")
 
-View(data)
-priors <- c(
-  prior(normal(130, 6), nlpar = "td", lb = 0),
-  prior(normal(120, 15), nlpar = "delta", lb = 0),  # tf ~ 130 + 120 = 250
-  prior(normal(0.5, 0.25), nlpar = "kd", lb = 0),
-  prior(normal(0.5, 0.25), nlpar = "kf", lb = 0),
 
-  # group sd priors to avoid huge offsets
-  prior(exponential(0.4), class = "sd", nlpar = "td"),
-  prior(exponential(0.4), class = "sd", nlpar = "delta")
-)
 
-rm(doubleLogisticPhased)
-
-doubleLogisticPhased<- brm(
-    form_double_reparam,
-    data = data,
-    family = Beta(),
-    prior = priors,
-    control = list(adapt_delta = 0.95, max_treedepth = 15),
-    iter= 4000,
-    warmup= 2000,
-    chains= 4,
-    cores= 4
-)
 
 doubleLogisticFixedRandom<- brm(
-    form_double_fixedRandom,
+    form_main,
     data = data,
-    family = Beta(),
     prior = priors,
+    family = Beta(),
     control = list(adapt_delta = 0.95, max_treedepth = 15),
     iter= 4000,
     warmup= 2000,
     chains= 4,
     cores= 4
 )
+
+?brm
 
 rm(post)
 
 post <- as_draws_df(doubleLogisticFixedRandom)
 colnames_post<-colnames(post)
+#timing parameter td
+td_year<- post[,grepl("b_td", colnames_post)]    #there is 7 years here
+td_tree<- post[,grepl("r_tree__td", colnames_post)] #there is 15 trees here
+td_intercept<- post[,grepl("b_td_Intercept", colnames_post)]
 
-td_year<- post[,grepl("b_td_pheno_year", colnames_post)]
-td_tree<- post[,grepl("r_tree__td", colnames_post)]
+delta_year<- post[,grepl("b_delta", colnames_post)] #there is 7 years here
+delta_tree<- post[,grepl("r_tree__delta", colnames_post)] #there is 15 trees here
+delta_intercept<- post[,grepl("b_delta_Intercept", colnames_post)]
 
-delta_year<- post[,grepl("r_pheno_year__delta", colnames_post)]
-delta_tree<- post[,grepl("r_tree__delta", colnames_post)]
+## change the col names to be more readable
+colnames(td_tree)<- gsub("r_tree__td\\[(.*),.*", "\\1", colnames(td_tree))
+colnames(td_year)<- gsub("b_td_pheno_year(\\d{4})", "\\1", colnames(td_year))
+colnames(td_year)[1] <- "2017"
 
-td_treeYear<- post[,grepl("r_tree_year__td", colnames_post)]
-td_intercept<- post[,"b_td_Intercept"]
-delta_intercept<- post[,"b_delta_Intercept"]
+colnames(delta_tree)<- gsub("r_tree__delta\\[(.*),.*", "\\1", colnames(delta_tree))
+colnames(delta_year)<- gsub("b_delta_pheno_year(\\d{4})", "\\1", colnames(delta_year))
+colnames(delta_year)[1] <- "2017"
+
+year_names <- colnames(td_year)
+tree_names <- colnames(td_tree)
+
+##construct the tf
+tf_intercept<- td_intercept + delta_intercept   #you have to construct tf before adding the intercept to td and delta
+tf_tree<- td_tree + delta_tree
+tf_year<- td_year + delta_year
+#################################################
+
+delta_combinations<- data.frame(rows= 1:nrow(delta_year))
+for (i in year_names){
+  for (j in tree_names){
+    delta_combinations[,paste(j,i, sep="_")] <- delta_intercept$b_delta_Intercept +delta_year[,i] + delta_tree[,j]## here there delta doesnt needs the intercept
+  }
+}
+
+td_combinations<- data.frame(rows= 1:nrow(td_year))
+for (i in year_names){
+  for (j in tree_names){
+    td_combinations[,paste(j,i, sep="_")] <- td_intercept$b_td_Intercept + td_year[,i] + td_tree[,j]  ## intercept is td_year[,1]
+  }
+}
+
+tf_combinations<- data.frame(rows= 1:nrow(tf_year))
+for (i in year_names){
+  for (j in tree_names){
+    tf_combinations[,paste(j,i, sep="_")] <- td_intercept$b_td_Intercept + td_year[,i] + td_tree[,j] + delta_year[,i] + delta_tree[,j] ## intercept is td_year[,1]
+  }
+}
+
+delta_combinations<- delta_combinations[,-1]
+td_combinations<- td_combinations[,-1]
+tf_combinations<- tf_combinations[,-1]
+
+td_long<- td_combinations %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "year_tree",
+    values_to = "value"
+  ) %>% separate(year_tree, into = c("tree", "pheno_year"), sep = "_", remove = FALSE)%>%
+  mutate(type= "td")
+
+tf_long<- tf_combinations %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "year_tree",
+    values_to = "value"
+  ) %>% separate(year_tree, into = c("tree", "pheno_year"), sep = "_", remove = FALSE)%>%
+  mutate(type= "tf")
+
+delta_long<- delta_combinations %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "year_tree",
+    values_to = "value"
+  ) %>% separate(year_tree, into = c("tree", "pheno_year"), sep = "_", remove = FALSE)%>%
+  mutate(type= "delta")
+
+td_tf<- rbind(td_long, tf_long)
+windows()
+ggplot(delta_long, aes(x=value, fill=tree))+
+  geom_histogram(aes(y= (..density..)), bins=100)+
+  geom_line(data=data, aes(x=day, y=y_norm, color=tree), alpha=0.5, inherit.aes = FALSE, show.legend= FALSE)+
+  facet_wrap(~pheno_year, ncol=1)
+
+
+
+
 
 
 
 for (i in 1:ncol(td_tree)){
-  td_tree[,i]<- td_tree[,i] + td_year$b_td_pheno_year2021
+    td_tree[,i]<- td_tree[,i] + td_intercept  # add the intercept to each tree
 }
 
-for (i in 1:ncol(td_year)){
-  #if td_year[,i] is not the intercept column
-  if (colnames(td_year)[i] == "b_td_Intercept") next
-  td_year[,i]<- td_year[,i] + td_intercept
+
+
+
+tf_intercept<- td_intercept + delta_intercept   #you have to construct tf before adding the intercept to td and delta
+tf_tree<- td_tree + delta_tree
+tf_year<- td_year + delta_year
+
+)
+##################################################
+
+
+for (i in 1:ncol(tf_tree)){
+    tf_tree[,i]<- tf_tree[,i] + tf_intercept  # add the intercept to each tree
 }
 
+# for (i in 1:ncol(delta_tree)){
+#     delta_tree[,i]<- delta_tree[,i] + delta_intercept  # add the intercept to each tree
+# }
+
+#calculate the posterior for each combination of tree and year
+
+
+delta_combinations<- data.frame(rows= 1:nrow(delta_year))
 for (i in 1:ncol(delta_tree)){
-  #if delta_tree[,i] is not the intercept column
-  if (colnames(delta_tree)[i] == "b_delta_Intercept") next
-  delta_tree[,i]<- delta_tree[,i] + delta_intercept
-}
-for (i in 1:ncol(delta_year)){
-  #if delta_year[,i] is not the intercept column
-  if (colnames(delta_year)[i] == "b_delta_Intercept") next
-  delta_year[,i]<- delta_year[,i] + delta_intercept
+  for (j in 1:ncol(delta_year)){
+    delta_combinations[,paste(tree_names[i], year_names[j], sep="_")] <- delta_year[,j] + delta_tree[,i]## intercept is delta_year[,1]
+  }
 }
 
-treeYear_long<- td_treeYear %>%
+delta_combinations<- delta_combinations[,-1]
+tf_combinations<- tf_combinations[,-1]
+td_combinations<- td_combinations[,-1]
+
+td_long<- td_combinations %>%
   pivot_longer(
     cols = everything(),
     names_to = "tree_year",
-    values_to = "td"
-  ) %>%
-  mutate(tree_year = gsub("r_tree_year__td\\[(.*),.*", "\\1", tree_year))
+    values_to = "value"
+  ) %>% separate(tree_year, into = c("tree", "pheno_year"), sep = "_", remove = FALSE)%>%
+  mutate(type= "td")
 
-treeYear_long<- treeYear_long %>%
-  separate(tree_year, into = c("tree", "year"), sep = "_")%>%
-  mutate(treeYear= paste(tree, year, sep="_"))
-
-windows()
-ggplot(treeYear_long, aes(x=td, fill=treeYear))+
-  geom_histogram(aes(y= (..density..)), bins=100, alpha=0.7)+
-  theme(legend.position = "none")
-
-delta_year_long<- delta_year %>%
+tf_long<- tf_combinations %>%
   pivot_longer(
     cols = everything(),
-    names_to = "year",
-    values_to = "delta"
-  ) %>%
-  mutate(year = gsub("r_pheno_year__delta\\[(\\d{4}),.*", "\\1", year))
+    names_to = "tree_year",
+    values_to = "value"
+  ) %>% separate(tree_year, into = c("tree", "pheno_year"), sep = "_", remove = FALSE)%>%
+  mutate(type= "tf")
 
-td_year_long<- td_year %>%
+delta_long<- delta_combinations %>%
   pivot_longer(
     cols = everything(),
-    names_to = "pheno_year",
-    values_to = "td"
-  ) %>%
-  mutate(pheno_year = gsub("b_td_pheno_year(\\d{4})", "\\1", pheno_year))
-
-rm(td_tree_long)
-td_tree_long<- td_tree %>%
-  pivot_longer(
-    cols = everything(),
-    names_to = "tree",
-    values_to = "td"
-  ) %>%
-  mutate(tree = gsub("r_tree__td\\[(\\d{3,6}),.*", "\\1", tree)) %>%
-  filter(tree != 134166)
+    names_to = "tree_year",
+    values_to = "value"
+  ) %>% separate(tree_year, into = c("tree", "pheno_year"), sep = "_", remove = FALSE)%>%
+  mutate(type= "delta")
 
 windows()
-ggplot(td_tree_long, aes(x=td, fill=tree))+
-  geom_histogram(aes(y= (..density..)*10), bins=100, alpha=0.7)+
-  geom_line(data=data, aes(x=day, y=y_norm, color=tree), alpha=0.5, inherit.aes = FALSE)+
-  facet_wrap(~tree)
+ggplot(td_long, aes(x=value, fill=tree))+
+  geom_histogram(aes(y= (..density..)), bins=100)+
+  facet_wrap(~pheno_year, ncol=1)
 
 windows()
-ggplot(data[data$pheno_year==2021,], aes(x=day, y=y_norm, color=tree))+
-  geom_line()+
-  geom_histogram(data= td_tree_long, aes(x=td, y=(..density..)*10, color=tree), bins=100, alpha=0.5, inherit.aes = FALSE)+
-  facet_wrap(~tree)
+ggplot(tf_long, aes(x=value, fill=tree))+
+  geom_histogram(aes(y= (..density..)), bins=100)+
+  facet_wrap(~pheno_year, ncol=1)
 
-summary_td <- td_year_long %>%
+
+windows()
+ggplot(delta_long, aes(x= value, y= tree, fill= tree))+
+  geom_boxplot(alpha= 0.7, outlier.size = 0.5)+
+  facet_wrap(~pheno_year, ncol=1)+
+  scale_fill_viridis_d(name = "Tree tag")+
+  theme_minimal()+
+  labs(title= "Cavallinesia planatifolia: Duration by tree and year")+
+  xlab("Duration (days below 50%)")+
+  ylab("Tree tag")
+
+
+
+
+
+
+
+
+
+
+
+
+
+td_tf<- rbind(td_long, tf_long)
+
+
+# for delta combinations i want for every year three segments. one for the median delta, another for the 5% and another for the 95%
+delta_summary<- delta_long %>%
+    group_by(pheno_year) %>%
+    summarise(
+        median= median(value),
+        p5= quantile(value, 0.05),
+        p95= quantile(value, 0.95)
+    )
+
+td_summary <- td_long %>%
+  group_by(pheno_year, tree) %>%
+  summarise(
+    peak_density_y = {
+      d <- density(value)
+      max(d$y)  # maximum density value for each tree
+    },
+    p5 = quantile(value, 0.05),
+    median = quantile(value, 0.5),
+    p95 = quantile(value, 0.95),
+    .groups = "drop_last"  # Keep pheno_year grouping
+  ) %>%
   group_by(pheno_year) %>%
   summarise(
-    mean_td = mean(td),
-    median_td = median(td),
-    lower_95 = quantile(td, 0.025),
-    upper_95 = quantile(td, 0.975),
-    sd_td = sd(td),
-    mode_td = mlv(td, method = "shorth")$M
+    sum_peak_density = sum(peak_density_y),  # Sum all trees' peak densities per year
+    p5_mean= mean(p5),
+    median_mean= mean(median),
+    p95_mean= mean(p95)
   )
 
 
-windows()
-ggplot(td_year_long, aes(x = td, fill = pheno_year)) +
-  geom_histogram(aes(y = (..density..)*10), bins = 100, alpha = 0.7) +
-  geom_line(data=data, aes(x = day, y = y_norm, color = tree), alpha = 0.5, inherit.aes = FALSE) +
-  facet_wrap(~pheno_year) +
-  ylab("Normalized count")
-
-
-windows()
-ggplot(td_year_long, aes(x=td, fill=year))+
-  geom_histogram(bins=100)+
-  facet_wrap(~year, ncol=1, scales = "fixed")
-
-windows()
-ggplot(delta_year_long, aes(x=delta, fill=year))+
-  geom_histogram(bins=100)+
-  facet_wrap(~year, ncol=1, scales = "fixed")
-
-
-
-
-
-td_tree_long<- td_tree %>%
-  pivot_longer(
-    cols = everything(),
-    names_to = "tree",
-    values_to = "td"
-  ) %>%
-  mutate(tree = gsub("r_tree__td\\[([A-Z]),.*", "\\1", tree))
-
-windows()
-ggplot(td_tree_long, aes(x=td, fill=tree))+
-  geom_histogram(bins=200)+
-  facet_wrap(~tree, ncol=1, scales = "fixed")+
-  theme(strip.text = element_blank())+
-  xlim(-5,5)
-
-
-td_year<- post[,grepl("b_td", colnames_post)]
-#drop the intercept column
-td_year_intercept<- post[,"b_td_Intercept"]
-
-
-
-for (i in 1:ncol(td_year)){
-    #if td_year[,i] is not the intercept column
-    if (colnames(td_year)[i] == "b_td_Intercept") next
-    td_year[,i]<- td_year[,i] + td_year_intercept
-}
-
-
-tf_year<- post[,grepl("b_tf", colnames_post)]
-tf_year_intercept<- post[,"b_tf_Intercept"]
-
-for (i in 1:ncol(tf_year)){
-  tf_year[,i]<- tf_year[,i] + tf_year_intercept
-}
-
-
-td_year_long<- td_year %>%
-  pivot_longer(
-    cols = everything(),
-    names_to = "year",
-    values_to = "td"
-  ) %>%
-  mutate(year = gsub("b_td_", "", year)) 
-
-tf_year_long<- tf_year %>%
-  pivot_longer(
-    cols = everything(),
-    names_to = "year",
-    values_to = "tf"
-  ) %>%
-  mutate(year = gsub("b_tf_", "", year))
-
-
-windows()
-ggplot(td_year_long, aes(x=td, fill=year))+
-  geom_histogram(bins=200)+
-  facet_wrap(~year, ncol=1, scales = "fixed")
-
-# Select the intercept and year effects
-td_post <- post %>%
-  select(
-    "b_td_Intercept",
-    "r_year__td[2018,Intercept]",
-    "r_year__td[2019,Intercept]",
-    "r_year__td[2020,Intercept]",
-    "r_year__td[2021,Intercept]",
-    "r_year__td[2022,Intercept]",
-    "r_year__td[2023,Intercept]",
-    "r_year__td[2024,Intercept]"
-  )
-
-td_post_tree <- post %>%
-  select(
-    "b_td_Intercept",
-    "r_tree__td[A,Intercept]",
-    "r_tree__td[B,Intercept]",
-    "r_tree__td[C,Intercept]",
-    "r_tree__td[D,Intercept]",
-    "r_tree__td[E,Intercept]",
-    "r_tree__td[F,Intercept]",
-    "r_tree__td[G,Intercept]",
-    "r_tree__td[H,Intercept]",
-    "r_tree__td[I,Intercept]",
-    "r_tree__td[J,Intercept]",
-    "r_tree__td[K,Intercept]",
-    "r_tree__td[L,Intercept]",
-    "r_tree__td[M,Intercept]",
-    "r_tree__td[N,Intercept]",
-    "r_tree__td[O,Intercept]",
-    "r_tree__td[P,Intercept]",
-    "r_tree__td[Q,Intercept]",
-    "r_tree__td[R,Intercept]",
-    "r_tree__td[S,Intercept]",
-    "r_tree__td[T,Intercept]"
-  )
-
-# Pivot to long format
-td_calc <- td_post %>%
+segments <- td_summary %>%
+  left_join(delta_summary, by = c("pheno_year")) %>%
   mutate(
-    td_2018 = b_td_Intercept + `r_year__td[2018,Intercept]`,
-    td_2019 = b_td_Intercept + `r_year__td[2019,Intercept]`,
-    td_2020 = b_td_Intercept + `r_year__td[2020,Intercept]`,
-    td_2021 = b_td_Intercept + `r_year__td[2021,Intercept]`,
-    td_2022 = b_td_Intercept + `r_year__td[2022,Intercept]`,
-    td_2023 = b_td_Intercept + `r_year__td[2023,Intercept]`,
-    td_2024 = b_td_Intercept + `r_year__td[2024,Intercept]`
+    x_start_median = median_mean,
+    x_end_median = median_mean + median,
+    x_start_p5 = p5_mean,
+    x_end_p5 = p5_mean + p5,
+    x_start_p95 = p95_mean,
+    x_end_p95 = p95_mean + p95
+  )%>%
+  pivot_longer(
+    cols = starts_with("x_"),
+    names_to = c(".value", "stat"),
+    names_pattern = "x_(start|end)_(.*)"
   ) %>%
-  select(starts_with("td_"))
-
-td_calc_tree <- td_post_tree %>%
+  select(pheno_year, stat, start, end,sum_peak_density) %>%
   mutate(
-    td_A = b_td_Intercept + `r_tree__td[A,Intercept]`,
-    td_B = b_td_Intercept + `r_tree__td[B,Intercept]`,
-    td_C = b_td_Intercept + `r_tree__td[C,Intercept]`,
-    td_D = b_td_Intercept + `r_tree__td[D,Intercept]`,
-    td_E = b_td_Intercept + `r_tree__td[E,Intercept]`,
-    td_F = b_td_Intercept + `r_tree__td[F,Intercept]`,
-    td_G = b_td_Intercept + `r_tree__td[G,Intercept]`,
-    td_H = b_td_Intercept + `r_tree__td[H,Intercept]`,
-    td_I = b_td_Intercept + `r_tree__td[I,Intercept]`,
-    td_J = b_td_Intercept + `r_tree__td[J,Intercept]`,
-    td_K = b_td_Intercept + `r_tree__td[K,Intercept]`,
-    td_L = b_td_Intercept + `r_tree__td[L,Intercept]`,
-    td_M = b_td_Intercept + `r_tree__td[M,Intercept]`,
-    td_N = b_td_Intercept + `r_tree__td[N,Intercept]`,
-    td_O = b_td_Intercept + `r_tree__td[O,Intercept]`,
-    td_P = b_td_Intercept + `r_tree__td[P,Intercept]`,
-    td_Q = b_td_Intercept + `r_tree__td[Q,Intercept]`,
-    td_R = b_td_Intercept + `r_tree__td[R,Intercept]`,
-    td_S = b_td_Intercept + `r_tree__td[S,Intercept]`,
-    td_T = b_td_Intercept + `r_tree__td[T,Intercept]`
-  ) %>%
-  select(starts_with("td_"))
-
-# Pivot to long format
-td_long <- td_calc %>%
-  pivot_longer(
-    cols = everything(),
-    names_to = "year",
-    values_to = "td"
-  ) %>%
-  mutate(year = gsub("td_", "", year))
-
-td_long_tree <- td_calc_tree %>%
-  pivot_longer(
-    cols = everything(),
-    names_to = "tree",
-    values_to = "td"
-  ) %>%
-  mutate(tree = gsub("td_", "", tree))
-
-# Plot histograms
-windows()
-ggplot(td_long, aes(x = td, fill = year)) +
-  geom_histogram(bins = 100) +
-  facet_wrap(~ year, ncol = 1, scales = "fixed")+
-  xlim(0,50)
-
-windows()
-ggplot(td_long_tree, aes(x = td, fill = tree)) +
-  geom_histogram(bins = 100) +
-  facet_wrap(~ tree, ncol = 1, scales = "fixed")+
-  xlim(0,50)+
-  theme(strip.text = element_blank())
-#how late is td 2021 compared to all other years?
-# Test if 2021 is later than 2020
-
-############this is comparing years#########
-##summarize each of the years in td_long
-summary_td <- td_long %>%
-  group_by(year) %>%
-  summarize(
-    mean_td = mean(td),
-    median_td = median(td),
-    sd_td = sd(td),
-    n = n(),
-    fifthPercentile = quantile(td, 0.05),
-    ninetyFifthPercentile = quantile(td, 0.95)
+    ystart = case_when(
+      stat == "median" ~ sum_peak_density,
+      stat == "p5" ~ 0.1,
+      stat == "p95" ~ 0.3,
+      TRUE ~ NA_real_  # fallback for any other values
+    ),
+    yend = ystart
   )
-View(summary_td)
-
-windows()
-ggplot(td_long, aes(x = td, fill = year)) +
-  geom_histogram(position = "identity", alpha = 0.5, bins = 100) +
-  theme_minimal() +
-  labs(x = "td posterior", y = "Frequency", fill = "Year") +
-  scale_fill_brewer(palette = "Set1")+
-  xlim(0,50
 
 
-############end#################
-
-colnames_post<- colnames(post)
-
-post_td_2021<- post_td[,grep("2021", colnames(post_td))]
-colnames(post_td_2021)
-post<- as_draws_df(doubleLogisticPhased)
-colnames_post<- colnames(post)
-post_td<- post[,grep("td", colnames_post)]
-post_td_2021_long<- as.data.frame(post_td) %>%
-  pivot_longer(
-    cols= everything(),
-    names_to= "td_name",
-    values_to= "td"
-  ) %>% 
-  mutate(tree= gsub("r_treeYear__td\\[([A-Z])_.*", "\\1", td_name),
-         year= gsub("r_treeYear__td\\[[A-Z]_(\\d{4}),.*", "\\1", td_name))%>%
-    filter(year %in% c(2018,2019,2020,2021,2022,2023,2024))
+start_date <- as.Date("2017-09-01") # the origin of the transformed day variable
+breaks <- as.numeric(difftime(
+  seq(start_date, by = "1 months", length.out = 12),
+  start_date,
+  units = "days"
+))
+labels <- format(start_date + breaks, "%b")  
 
 
 windows()
-ggplot(post_td_2021_long, aes(x=td, fill=tree))+
-  geom_histogram(bins=200)+
-  facet_wrap(~year, ncol=1, scales = "fixed")+
-    xlim(-5,5)+
-    theme(strip.text = element_blank())
+ggplot(td_tf, aes(x=value, fill=tree, alpha=type))+
+  geom_histogram(aes(y= (..density..)), bins=100)+
+  geom_segment(data=segments, aes(x=start, y=ystart, xend=end, yend=yend, color=stat), size=1, inherit.aes = FALSE)+
+  geom_line(data=data[data$tree != 134166,], aes(x=day, y=y_norm, color=tree), alpha=0.5, inherit.aes = FALSE, show.legend= FALSE)+
+  facet_wrap(~pheno_year, ncol=1)+
+  scale_alpha_manual(values = c("td" = 0.7, "tf" = 0.4), 
+                     labels = c("td" = "Leaf drop", "tf" = "Leaf flush"),
+                     name = "Type")+
+  scale_color_manual(values = c("p5" = "red", "median" = "black", "p95" = "blue"), 
+                     name = "Deciduousness duration")+
+  scale_fill_viridis_d(name = "Tree tag")+
+  theme_minimal()+
+  labs(title= "Cavallinesia planatifolia: timing and duration")+
+  ylab("Density and Leaf Coverage")+
+  xlab("Days")+
+  scale_x_continuous(
+    breaks = breaks,
+    labels = labels
+  )
+
+windows()
+ggplot(delta_long, aes(x=value, fill=tree))+
+  geom_histogram(aes(y= (..density..)), bins=100)
+
+#lets make a delta long horizontal boxplot with facets per year
+
+windows()
+ggplot(td_long, aes(x= value, y= tree, fill= tree))+
+  geom_boxplot(alpha= 0.7, outlier.size = 0.5)+
+  facet_wrap(~pheno_year, ncol=1)+
+  scale_fill_viridis_d(name = "Tree tag")+
+  theme_minimal()+
+  labs(title= "Cavallinesia planatifolia: Leaf drop timing by tree and year")+
+  xlab("Leaf drop timing (days since Sept 1)")+
+  ylab("Tree tag")+
+  scale_x_continuous(
+    breaks = breaks,
+    labels = labels
+  )
+
+windows()
+ggplot(tf_long, aes(x= value, y= tree, fill= tree))+
+  geom_boxplot(alpha= 0.7, outlier.size = 0.5)+
+  facet_wrap(~pheno_year, ncol=1)+
+  scale_fill_viridis_d(name = "Tree tag")+
+  theme_minimal()+
+  labs(title= "Cavallinesia planatifolia: Leaf flush timing by tree and year")+
+  xlab("Leaf flush timing (days since Sept 1)")+
+  ylab("Tree tag")+
+  scale_x_continuous(
+    breaks = breaks,
+    labels = labels
+  )
