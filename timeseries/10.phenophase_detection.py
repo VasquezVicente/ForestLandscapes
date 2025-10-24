@@ -2,8 +2,6 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
-import ruptures as rpt
 
 
 ######################below here is simulated data##########################
@@ -144,7 +142,7 @@ for year in df_true_all_years['year'].unique():
         subset_obs = df_observed[(df_observed['year'] == year) & (df_observed['tree'] == tree)]
         plt.scatter(subset_obs['dayYear'], subset_obs['observed_leafing'], label=f'Observed {tree} {year}', alpha=0.6)
 
-plt.xlim(1, 80)
+plt.xlim(20, 120)
 plt.show()
 
 

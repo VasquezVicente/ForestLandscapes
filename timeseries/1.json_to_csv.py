@@ -7,10 +7,10 @@ folder_name = input("Input folder name:")
 location=os.path.join(r'timeseries', folder_name)
 files= os.listdir(location)
 
-with open(os.path.join(location,files[0]), "r") as f:
+with open(os.path.join(location,files[1]), "r") as f:
     observations = json.load(f)  
 
-with open(os.path.join(location, files[1]), "r") as f:
+with open(os.path.join(location, files[0]), "r") as f:
     plants=json.load(f)
 
 data = []
