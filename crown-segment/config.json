@@ -1,14 +1,14 @@
 {
-    "image_path": "D:/data_crown/sherman2025_2.tif",
-    "model_path": "D:/data_crown/230103_randresize_full.pth",
-    "site_path":"D:/data_crown",
+    "image_path": "D:/yasuni/ECUADOR_yasuni_2025_05_30_cropped.tif", 
+    "model_path": "D:/yasuni/230729_05dates.pth",
+    "site_path":"D:/yasuni",
     "buffer": 30, 
-    "tile_width":40,
-    "tile_height":40,
-    "img": "sherman2025_2.tif",
-    "iou_th":0.6,
+    "tile_width":50,
+    "tile_height":50,
+    "img": "ECUADOR_yasuni_2025_05_30_cropped.tif",
+    "iou_th":0.3,
     "stitch_threshold": 1,
-    "clean_threshold": 0.6,
-    "confidence_score": 0.5,
+    "clean_threshold": 0.3,
+    "confidence_score": 0.3,
     "simplify_tolerance": 0.3
 }

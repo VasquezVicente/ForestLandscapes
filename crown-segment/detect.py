@@ -27,7 +27,7 @@ def detect_crowns(config_path):
     clean = clean_crowns(crowns, config["iou_th"], confidence=0)
     clean = clean[clean["Confidence_score"] > config["confidence_score"]]
     clean = clean.set_geometry(clean.simplify(config["simplify_tolerance"]))
-    clean.crs = "EPSG:32617"
+    clean.crs = "EPSG:32718"
     clean.to_file(os.path.join(config["site_path"], config["image_path"]+"predicted.shp"))
     print("Crown detection complete")
 

@@ -36,3 +36,8 @@ LandscapeScripts/metadata.py
 *.xml
 *.shp.xml
 .Rproj.user
+.Rhistory
+*.aux
+*.log
+
+.vscode/settings.json

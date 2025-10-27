@@ -80,7 +80,10 @@ def calculate_glcm_features(image, window_size=5, angles=[0, 45, 90, 135]):
         glcm_features.append(correlation)
     return glcm_features
 
-training_dataset[training_dataset['date'].isna()]
+training_dataset['date'] = training_dataset['polygon_id'].str.split("_").str[1]
+
+
+
 #extract the features, crown based
 counter=0
 list_ortho = [f for f in os.listdir(os.path.join(data_path, 'orthomosaic_aligned_local')) 
@@ -89,7 +92,7 @@ for orthomosaic in list_ortho:
     print(f"Processing orthomosaic: ", orthomosaic)
     date = "_".join(orthomosaic.split("_")[2:5])
     with rasterio.open(os.path.join(data_path,'orthomosaic_aligned_local',orthomosaic)) as src:
-        polygons_date= training_dataset[training_dataset['date']==date]
+        polygons_date= training_dataset[training_dataset['date']==date.replace("_","-")]
         for idx, row in polygons_date.iterrows():
             counter += 1
             print(f"  Processed rows: {counter}", end='\r')  # keep it clean in the terminal
