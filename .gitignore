@@ -13,6 +13,7 @@ LandscapeScripts/get_file_paths.py
 LandscapeScripts/get_file_paths.bat
 LandscapeScripts/convention_checker1.bat
 LandscapeScripts/metadata.py
+.vscode/settings.json
 
 #git ignore folder date
 # Exceptions for specific files if needed
