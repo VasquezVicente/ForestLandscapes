@@ -518,4 +518,32 @@ No shift was detected for tree E.
     \label{fig:td_posterior_tree_fixed}
 \end{figure}
 
+
+
+\begin{equation}
+    LC~(DOY)= (1 - \frac{1}{(1 + e^{-0.5 (DOY - (t_{d} + \delta/2))})}) *
+    \frac{1}{(1 + e^{k_{d}(DOY - t_{d})})} +
+    \frac{1}{(1 + e^{-0.5 (DOY - (t_{d} + \delta/2))})} *
+    \frac{1}{(1 + e^{-k_{f}(DOY - (t_{d} + \delta))})}
+\end{equation}
+
+\begin{equation}
+    t_{f}= t_{d} + \delta
+    t_{m}= t_{d} + \delta/2
+\end{equation}
+
+\section{Next Steps}
+
+We must evaluate if the parameters are estimable given the following simplified model for leaf drop event only.
+\begin{equation}
+    LC(DOY)= \frac{1}{1 + e^{k_{d}(DOY - t_{d})}}
+\end{equation}
+The will fit a bayesian non-linear model with global intercept for $k_d$. 
+And random effects for tree and year in $t_d$.
+\begin{equation}
+    t_{d} ~ 1 + (1 | tree) + (1 | year)
+\end{equation}
+
+Implement Data cloning from Lele et al. 2007 to evaluate parameter estimability.
+
 \end{document}
