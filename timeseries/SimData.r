@@ -1,4 +1,6 @@
-library(MASS); 
+library(pacman)
+library(MASS)
+p_load(MASS,dclone, mcmcplots, ggplot2)
 # R functions for Data Cloning (maximum likelihood estimation using Bayesian MCMC)
 library(dclone); 
 # Create plots for MCMC output
@@ -50,6 +52,31 @@ leaves <- function() {
   lb ~ dnorm(0, 1)       # prior for lb
   b <- exp(lb)
 
+  # main loop: add the year effect on Td (your formulation)
+  for (j in 1:n) {
+    pf[j] <- 1/(1 + exp(kd * (days[j] - Td)))
+    a[j]  <- (pf[j] * b) / (1 - pf[j])
+  }
+
+  # data cloning loop
+  for (k in 1:K) {
+    for (i in 1:n) {
+      Y[i,k] ~ dbeta(a[i], b)
+    }
+  }
+}
+
+leaves2 <- function() {
+
+  lkd ~ dnorm(0, 0.4)    # prior for lkd
+  kd <- exp(lkd)
+
+  ltd ~ dnorm(0, 4)      # prior for ltd
+  Td <- exp(ltd)
+
+  lb ~ dnorm(0, 1)       # prior for lb
+  b <- exp(lb)
+
   # year random effects
   for (y in 1:years) {
     uY[y] ~ dnorm(0, tauY)
@@ -71,7 +98,8 @@ leaves <- function() {
   }
 }
 
-data4dclone <- list(K=1, Y=dcdim(data.matrix(beta.samps)), n=n, days=all.days,years=) # just creates a list
+library(dclone)
+data4dclone <- list(K=1, Y=dcdim(data.matrix(beta.samps)), n=n, days=all.days) # just creates a list
 
 cl.seq <- c(1,5,10);   # is this the clones sequence?
 n.iter<-1000;n.adapt<-500;n.update<-10;thin<-1;n.chains<-3;
@@ -84,6 +112,7 @@ leaves.dclone <- dc.fit(data4dclone, params=out.parms, model=leaves, n.clones=cl
                         n.update=n.update,
                         n.iter = n.iter, 
                         thin=thin)
+
 
 dcdiag(leaves.dclone)
 

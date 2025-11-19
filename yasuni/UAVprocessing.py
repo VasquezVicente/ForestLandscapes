@@ -13,7 +13,7 @@ for idx, d in enumerate(dirs, 1):
 
 choice = int(input("Enter the number of the directory to process: ")) - 1
 selected_dir = dirs[choice]
-project_path = r"D:\Yasuni\ECUADOR_yasuni_2019_05_29_P4P\ECUADOR_yasuni_2019_05_29_P4P.psx"
+project_path = r"D:\Yasuni\ECUADOR_yasuni_2019_10_06_P4P\ECUADOR_yasuni_2019_10_06_P4P.psx"
 
 doc = Metashape.Document()
 doc.open(project_path)
@@ -39,9 +39,9 @@ for photo in chunk.cameras:
     shutil.copy(src, dst)
 
 
-list_projects= [r"D:\Yasuni\ECUADOR_yasuni_2019_05_05_P4P\ECUADOR_yasuni_2019_05_05_P4P.psx",
-                r"D:\Yasuni\ECUADOR_yasuni_2019_05_09_P4P\ECUADOR_yasuni_2019_05_09_P4P.psx",
-                r"D:\Yasuni\ECUADOR_yasuni_2019_05_29_P4P\ECUADOR_yasuni_2019_05_29_P4P.psx"
+list_projects= [r"D:\Yasuni\ECUADOR_yasuni_2019_10_06_P4P\ECUADOR_yasuni_2019_10_06_P4P.psx",
+                r"D:\Yasuni\ECUADOR_yasuni_2019_09_30_P4P\ECUADOR_yasuni_2019_09_30_P4P.psx",
+                r"D:\Yasuni\ECUADOR_yasuni_2019_07_23_P4P\ECUADOR_yasuni_2019_07_23_P4P.psx"
                 ]
 
 for project_path in list_projects:
@@ -79,7 +79,7 @@ for project_path in list_projects:
 
 
 from skimage import io, exposure
-ref_image = r"D:\Yasuni\ECUADOR_yasuni_2019_05_29_P4P\RGB\2019_May_29_Phantom_Flight_5_91.JPG"
+ref_image = r"D:\Yasuni\ECUADOR_yasuni_2019_07_02_P4P\RGB\2019_Jul_02_Phantom_Flight_4_290.JPG"
 ref_image= io.imread(ref_image)
 #io.imread(os.path.join(out_path,"DJI_0053.JPG"))
 
