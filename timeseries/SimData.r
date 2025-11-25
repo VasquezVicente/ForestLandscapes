@@ -9,6 +9,7 @@ n.inds   <- 20
 all.days <- rep(samp.days, n.inds)
 n        <- length(all.days)
 year.id  <- rep(rep(1:n.years, each = length(one.year)), n.inds)
+indv.id  <- rep(1:n.inds, each = length(samp.days))
 
 pf_fun <- function(kd, Td, x) {
   1 / (1 + exp(kd * (x - Td)))
@@ -20,32 +21,33 @@ Td <- 150
 
 # Generate year effects on Td
 uY_true    <- rep(0, n.years)
-uY_true[1] <- 30        
+uI_true    <- rep(0, n.inds)
+uI_true[1] <- -10
+uY_true[1] <- 30 
+Td_year_indv<- Td + uY_true[year.id] + uI_true[indv.id]       
 Td_year <- Td + uY_true[year.id]
 
 # simulate samples
-pf_true  <- pf_fun(kd = kd, Td = Td_year, x = all.days)
+pf_true  <- pf_fun(kd = kd, Td = Td_year_indv, x = all.days)
 a_true   <- (pf_true * b) / (1 - pf_true)
 beta.samps <- rbeta(n = n, shape1 = a_true, shape2 = b)
 
 # overlay both series in one plot
-cols <- rainbow(n.years)
+df<- data.frame(
+  days = all.days,
+  year = as.factor(year.id),
+  indv = as.factor(indv.id),
+  beta = beta.samps,
+  pf   = pf_true
+)
 windows()
-plot(all.days, beta.samps,
-  col = cols[year.id],
-  pch = 16,
-  main = "Simulated beta data with year-1 effect",
-  xlab = "Day of year", ylab = "Beta response",
-  ylim = c(0, 1))
-
-# Plot the true pf curve as lines (one line per year, matching the point colors)
-for (j in 1:n.years) {
-  days_j <- one.year
-  Td_j <- Td + uY_true[j]
-  pf_j <- pf_fun(kd = kd, Td = Td_j, x = days_j)
-  lines(days_j, pf_j, col = cols[j], lwd = 2)
-}
-legend("topright", legend = paste("Year", 1:n.years), col = cols, pch = 16, bty = "n")
+ggplot(df[df$indv %in% c(1,2,3), ], aes(x = days, y = beta, color = indv)) +
+  geom_point(alpha = 0.5) +
+  geom_line(aes(y = pf), size = 1)+
+  labs(title = "Simulated beta samples and true phenology curves",
+       y = "Beta samples and true pf",
+       x = "Day of year") +
+  theme_minimal()
 
      
 leaves <- function() {
@@ -141,7 +143,8 @@ leaves2 <- function() {
   tauY   <- pow(sigmaY, -2)
 
   for (y in 1:nyear) {
-    uY[y] ~ dnorm(0, tauY)
+  zY[y] ~ dnorm(0,1)
+  uY[y] <- sigmaY * zY[y]
   }
 
   for (i in 1:n) {
@@ -222,9 +225,9 @@ leaves2.dclone <- dc.parfit(
   multiply   = "K",      # clone acrsoss the K dimension (columns)
   unchanged  = c("n","K","nyear","pr"),      # n (days, year) don't change
   n.chains   = 3,
-  n.adapt    = 50000,
+  n.adapt    = 500,
   n.update   = 100,
-  n.iter     = 100000,
+  n.iter     = 10000,
   thin       = 10,
   partype    = "parchains",   
   updatefun  = upfun_leaves2,
@@ -233,7 +236,7 @@ leaves2.dclone <- dc.parfit(
 
 
 
-summary(leaves2.dclone_parallel)
+summary(leaves2.dclone)
 coef(leaves2.dclone)
 
 dcdiag(leaves2.dclone)
@@ -288,3 +291,79 @@ leaves3 <- function() {
     }
   }
 }
+
+upfun_leaves3 <- function(x) {
+  if (missing(x)) {
+    init_means <- c(
+      lkd = log(0.1),
+      ltd = log(150),
+      lb  = log(20),
+      log.sigmaY = log(1),
+      log.sigmaI = log(1)    # initial guess for individual SD
+    )
+
+    init_sds <- c(
+      lkd = 1.5,
+      ltd = 2,
+      lb  = 2,
+      log.sigmaY = 1.5,
+      log.sigmaI = 1.5
+    )
+    return(cbind(init_means, init_sds))
+  }
+
+  ncl <- nclones(x)
+  if (is.null(ncl)) ncl <- 1
+
+  par <- coef(x)
+  se  <- dcsd(x)
+
+  needed <- c("lkd", "ltd", "lb", "log.sigmaY", "log.sigmaI")
+  missing_pars <- setdiff(needed, names(par))
+  if (length(missing_pars) > 0) {
+    stop("upfun_leaves3 requires monitored parameters: ",
+         paste(missing_pars, collapse = ", "))
+  }
+
+  means <- par[needed]
+  sds <- se[needed] * sqrt(ncl)
+
+  return(cbind(means, sds))
+}
+
+Ymat <- dcdim(data.matrix(beta.samps))  # yields n x 1 initially; dc.fit will properly expand by multiply
+
+data4dclone3 <- list(
+  K     = 1,            # number of clones along Y dimension
+  Y     = Ymat,         # n x K (dcdim object works with multiply="K")
+  n     = n,            # number of obs (e.g. 1750)
+  nind  = n.inds,      # number of individuals
+  days  = all.days,     # length n
+  nyear = n.years,      # number of years (e.g. 7)
+  year  = year.id,      # vector of length n with integers 1:nyear
+  indiv = indv.id,      # vector of length n with integers 1:nind
+  pr    = upfun_leaves3()  # 5 x 2 matrix of (means, SDs)
+)
+
+# Parameters to monitor (with priors)
+out.parms <- c("lkd", "ltd", "lb", "log.sigmaY", "Td", "kd", "b", "uY")
+
+cl <- makePSOCKcluster(3)
+# Run data cloning: clone along n (observation index)
+leaves3.dclone <- dc.parfit(
+  cl         = cl,
+  data       = data4dclone,
+  params     = out.parms,
+  model      = leaves3,
+  n.clones   = c(1, 5, 10),
+  multiply   = "K",      # clone acrsoss the K dimension (columns)
+  unchanged  = c("n","K","nyear","pr","nind"),      # n (days, year) don't change
+  n.chains   = 3,
+  n.adapt    = 50,
+  n.update   = 10,
+  n.iter     = 1000,
+  thin       = 1,
+  partype    = "parchains",   
+  updatefun  = upfun_leaves3,
+  update     = "pr"
+)
