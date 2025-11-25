@@ -1,11 +1,11 @@
 library(pacman)
-p_load(dclone, MASS, ggplot2)
+p_load(dclone, MASS, ggplot2, snow)
 
 # Simulate data
 one.year <- seq(from = 1, to = 365, by = 30)
 n.years  <- 7
 samp.days <- rep(one.year, n.years)
-n.inds   <- 10
+n.inds   <- 20
 all.days <- rep(samp.days, n.inds)
 n        <- length(all.days)
 year.id  <- rep(rep(1:n.years, each = length(one.year)), n.inds)
@@ -211,25 +211,29 @@ data4dclone <- list(
 # Parameters to monitor (with priors)
 out.parms <- c("lkd", "ltd", "lb", "log.sigmaY", "Td", "kd", "b", "uY")
 
+cl <- makePSOCKcluster(3)
 # Run data cloning: clone along n (observation index)
-leaves2.dclone <- dc.fit(
+leaves2.dclone <- dc.parfit(
+  cl         = cl,
   data       = data4dclone,
   params     = out.parms,
   model      = leaves2,
-  n.clones   = c(1, 5),
+  n.clones   = c(1, 5, 10, 20),
   multiply   = "K",      # clone acrsoss the K dimension (columns)
   unchanged  = c("n","K","nyear","pr"),      # n (days, year) don't change
   n.chains   = 3,
-  n.adapt    = 500,
-  n.update   = 10,
-  n.iter     = 1000,
-  thin       = 1,
+  n.adapt    = 50000,
+  n.update   = 100,
+  n.iter     = 100000,
+  thin       = 10,
+  partype    = "parchains",   
   updatefun  = upfun_leaves2,
   update     = "pr"
 )
 
 
-summary(leaves2.dclone)
+
+summary(leaves2.dclone_parallel)
 coef(leaves2.dclone)
 
 dcdiag(leaves2.dclone)
@@ -245,3 +249,42 @@ plot(dctable, which= 1:6, type="log.var")
 
 length(dctable)
 mcmc_list2
+
+
+## trying to add more random effects: individual-level effects
+leaves3 <- function() {
+  lkd ~ dnorm(pr[1,1], 1 / pow(pr[1,2], 2))
+  kd  <- exp(lkd)
+  ltd ~ dnorm(pr[2,1], 1 / pow(pr[2,2], 2))
+  lb ~ dnorm(pr[3,1], 1 / pow(pr[3,2], 2))
+  b  <- exp(lb)
+
+  log.sigmaY ~ dnorm(pr[4,1], 1 / pow(pr[4,2], 2))
+  sigmaY <- exp(log.sigmaY)
+  tauY   <- pow(sigmaY, -2)
+
+  log.sigmaI ~ dnorm(pr[5,1], 1 / pow(pr[5,2], 2))
+  sigmaI <- exp(log.sigmaI)
+  tauI   <- pow(sigmaI, -2)
+
+  for (y in 1:nyear) {
+    uY[y] ~ dnorm(0, tauY)
+  }
+
+  for (j in 1:nind) {
+    uI[j] ~ dnorm(0, tauI)
+  }
+
+  for (i in 1:n) {
+    ltd_y[i] <- ltd + uY[year[i]] + uI[indiv[i]]   # still log-scale
+    Td_y[i]  <- exp(ltd_y[i])
+    pf[i]    <- 1 / (1 + exp(kd * (days[i] - Td_y[i])))
+    a[i]     <- (pf[i] * b) / (1 - pf[i])
+  }
+
+  for (k in 1:K) {
+    for (i in 1:n) {
+      Y[i,k] ~ dbeta(a[i], b)
+    }
+  }
+}
