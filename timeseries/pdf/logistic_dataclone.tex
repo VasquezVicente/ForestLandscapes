@@ -1,0 +1,71 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{mathrsfs}
+\usepackage[margin=1in]{geometry} % Reduce margins to use more of the page
+\begin{document}
+
+\title{Deciduousnness timing analysis}
+\author{Vicente Vasquez}
+
+
+Let S be a continous random variable representing the leaf coverage of single tree.
+S takes values in the interval [0,1], where 0 means no leaves and 1 means full leaf coverage.
+For a group of trees, we have $S_i$ for $i=1,...,N$. Every tree is observed at T time points, $t=1,...,T$.
+Finally, S is assumed to follow a Beta distribution with parameters $\alpha$ and $\beta$.
+
+We aim to fit a logistic function with parameters td for the inflection point and kd for the steepness of the curve.
+With maximum leaf coverage 1 and minimum leaf coverage 0, the logistic function is given by:
+\begin{equation}
+f(t) = \frac{1}{1 + e^{-k_d(t - t_d)}}
+\end{equation}
+
+We can simulate data in 30 days intervals over 7 years for 10 individuals as follows:
+\begin{verbatim}
+    one.year <- seq(from = 1, to = 365, by = 30)
+    n.years  <- 7
+    samp.days <- rep(one.year, n.years)
+    n.inds   <- 10
+    all.days <- rep(samp.days, n.inds)
+    n        <- length(all.days)
+    year.id  <- rep(rep(1:n.years, each = length(one.year)), n.inds)
+\end{verbatim}
+
+We define a logistic function to generate the true leaf coverage values with a b parameter of 20, kd of 0.1 and td of 150.
+\begin{verbatim}
+    pf_fun <- function(kd, Td, x) {
+    1 / (1 + exp(kd * (x - Td)))
+    }
+
+    b  <- 20
+    kd <- 0.1
+    Td <- 150
+\end{verbatim}
+
+We introduce a year effect to shift the td parameter in year 1 by 30 days.
+\begin{verbatim}
+    uY_true    <- rep(0, n.years)
+    uY_true[1] <- 30        
+    Td_year <- Td + uY_true[year.id]
+\end{verbatim}
+
+Finally, we simulate the observed leaf coverage values using a Beta distribution:
+
+\begin{verbatim}
+    pf_true  <- pf_fun(kd = kd, Td = Td_year, x = all.days)
+    a_true   <- (pf_true * b) / (1 - pf_true)
+    beta.samps <- rbeta(n = n, shape1 = a_true, shape2 = b)
+\end{verbatim}
+
+The simulated data looks like this:
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/pftrue_betasamps.png}
+    \caption{Simulated leaf coverage data for 10 individuals over 7 years. The red line indicates the true logistic function with year effect in year 1.}
+\end{figure}
+
+
+
+
+
+\end{document}

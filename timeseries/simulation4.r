@@ -91,8 +91,8 @@ form_main <- bf(
 
 
 priors<-c (
-    prior(normal(50, 30), nlpar = "td", lb = 0),
-    prior(normal(0.6, 1), nlpar = "kd", lb = 0)
+    prior(normal(50, 30), nlpar = "td", lb = 0), # 1 to 365
+    prior(normal(0.6, 1), nlpar = "kd", lb = 0) # postive
 )
 
 windows()

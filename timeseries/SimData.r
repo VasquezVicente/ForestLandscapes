@@ -1,63 +1,65 @@
 library(pacman)
-library(MASS)
-p_load(MASS,dclone, mcmcplots, ggplot2)
-# R functions for Data Cloning (maximum likelihood estimation using Bayesian MCMC)
-library(dclone); 
-# Create plots for MCMC output
-library(mcmcplots)
-library(ggplot2)
-
+p_load(dclone, MASS, ggplot2)
 
 # Simulate data
-one.year <- seq(from=1,to=365,by=30)
-n.years <- 7
-samp.days <- rep(one.year,n.years)
-n.inds <- 25
-all.days <- rep(samp.days,n.inds)
-n <- length(all.days)
+one.year <- seq(from = 1, to = 365, by = 30)
+n.years  <- 7
+samp.days <- rep(one.year, n.years)
+n.inds   <- 10
+all.days <- rep(samp.days, n.inds)
+n        <- length(all.days)
+year.id  <- rep(rep(1:n.years, each = length(one.year)), n.inds)
 
-pf <- function(kd,Td,x){
-  out <- 1/(1+exp(kd*(x-Td)))
-  return(out)
+pf_fun <- function(kd, Td, x) {
+  1 / (1 + exp(kd * (x - Td)))
 }
 
-#####visualize shpe of the generation function###
-tmp<-pf(kd=0.9, Td=100, x=all.days)
-windows()
-ggplot(data=data.frame(x=all.days,y=pf.true), aes(x=x,y=y)) + geom_point()
-#########################################
-
-b <- 20
+b  <- 20
 kd <- 0.1
-Td <- 50
-pf.true <- pf(kd=kd,Td=Td,x=all.days)
+Td <- 150
 
-#plot(all.days, pf.true, pch=16)
-as <- (pf.true*b)/(1-pf.true)
-beta.samps <- rbeta(n=n, shape1=as, shape2=b)
+# Generate year effects on Td
+uY_true    <- rep(0, n.years)
+uY_true[1] <- 30        
+Td_year <- Td + uY_true[year.id]
 
+# simulate samples
+pf_true  <- pf_fun(kd = kd, Td = Td_year, x = all.days)
+a_true   <- (pf_true * b) / (1 - pf_true)
+beta.samps <- rbeta(n = n, shape1 = a_true, shape2 = b)
+
+# overlay both series in one plot
+cols <- rainbow(n.years)
 windows()
-plot(all.days,beta.samps)
+plot(all.days, beta.samps,
+  col = cols[year.id],
+  pch = 16,
+  main = "Simulated beta data with year-1 effect",
+  xlab = "Day of year", ylab = "Beta response",
+  ylim = c(0, 1))
 
+# Plot the true pf curve as lines (one line per year, matching the point colors)
+for (j in 1:n.years) {
+  days_j <- one.year
+  Td_j <- Td + uY_true[j]
+  pf_j <- pf_fun(kd = kd, Td = Td_j, x = days_j)
+  lines(days_j, pf_j, col = cols[j], lwd = 2)
+}
+legend("topright", legend = paste("Year", 1:n.years), col = cols, pch = 16, bty = "n")
 
+     
 leaves <- function() {
-
-  lkd ~ dnorm(0, 0.4)    # prior for lkd
+  lkd ~ dnorm(pr[1,1], 1 / pow(pr[1,2],2))
   kd <- exp(lkd)
-
-  ltd ~ dnorm(0, 4)      # prior for ltd
+  ltd ~ dnorm(pr[2,1], 1 / pow(pr[2,2],2))
   Td <- exp(ltd)
-
-  lb ~ dnorm(0, 1)       # prior for lb
+  lb ~ dnorm(pr[3,1], 1 / pow(pr[3,2],2))
   b <- exp(lb)
 
-  # main loop: add the year effect on Td (your formulation)
   for (j in 1:n) {
-    pf[j] <- 1/(1 + exp(kd * (days[j] - Td)))
+    pf[j] <- 1 / (1 + exp(kd * (days[j] - Td)))
     a[j]  <- (pf[j] * b) / (1 - pf[j])
   }
-
-  # data cloning loop
   for (k in 1:K) {
     for (i in 1:n) {
       Y[i,k] ~ dbeta(a[i], b)
@@ -65,173 +67,181 @@ leaves <- function() {
   }
 }
 
-leaves2 <- function() {
-  lkd ~ dnorm(0, 0.4)    # prior for lkd
-  kd <- exp(lkd)
-  ltd ~ dnorm(0, 4)      # prior for ltd
-  Td <- exp(ltd)
-  lb ~ dnorm(0, 1)       # prior for lb
-  b <- exp(lb)
 
-  # year random effects
-  for (y in 1:years) {
-    uY[y] ~ dnorm(0, tauY)
-  }
-  sigmaY ~ dunif(0, 10)
-  tauY <- pow(sigmaY, -2)
-
-  # main loop: add the year effect on Td (your formulation)
-  for (j in 1:n) {
-    pf[j] <- 1/(1 + exp(kd * (days[j] - (Td + uY[year[j]]))))
-    a[j]  <- (pf[j] * b) / (1 - pf[j])
+upfun_leaves <- function(x) {
+  if (missing(x)) {
+    means <- c(log(0.1), log(150), log(20))
+    sds   <- c(2, 2, 2)
+    return(cbind(means, sds))
   }
 
-  # data cloning loop
-  for (k in 1:K) {
-    for (i in 1:n) {
-      Y[i,k] ~ dbeta(a[i], b)
-    }
+  ncl <- nclones(x) # When the function kicks in with another k cloning step greater than 1. So the function says how many clones are there in this iteration
+  if (is.null(ncl)) ncl <- 1   # of course, if no cloning yet, ncl=1
+
+  par <- coef(x)  #we return the posterior means of the parameters GIVEN BY OUT.PARAMS
+  se  <- dcsd(x)  #we return the posterior SDs of the parameters GIVEN BY OUT.PARAMS
+
+  needed <- c("lkd", "ltd", "lb")  # needed parameters, only priors
+  missing_pars <- setdiff(needed, names(par))
+  if (length(missing_pars) > 0) {
+    stop("upfun_leaves requires monitored parameters: ",
+         paste(missing_pars, collapse = ", "))
   }
+  means <- par[needed]   
+  sds   <- se[needed] * sqrt(ncl)  # multiply by sqrt(ncl) to get un-cloned SDs
+  return(cbind(means, sds))
 }
 
-v.years <- rep(1:n.years, each=length(one.year)*n.inds)
-data4dclone <- list(K=1, Y=dcdim(data.matrix(beta.samps)), n=n, days=all.days, year= v.years) # just creates a list
 
-cl.seq <- c(1,5,10);   # is this the clones sequence?
+dat<- list(K=1,                               #K is a loop index for data cloning
+           Y=dcdim(data.matrix(beta.samps)),  
+           n=n,
+           days=all.days,
+           pr = upfun_leaves())
+cl.seq <- c(1,5,10,20); # flone sequence
 n.iter<-1000;n.adapt<-500;n.update<-10;thin<-1;n.chains<-3;
-
-out.parms <- c("kd", "Td", "b", "pf")
-leaves.dclone <- dc.fit(data4dclone, params=out.parms, model=leaves, n.clones=cl.seq,
-                        multiply="K",unchanged="n",
+out.parms <- c("lkd", "ltd", "lb", "kd", "Td", "b")
+leaves.dclone <- dc.fit(dat, params=out.parms, model=leaves, n.clones=cl.seq,
+                        multiply="K",unchanged=c("n"),
                         n.chains = n.chains, 
                         n.adapt=n.adapt, 
                         n.update=n.update,
-                        n.iter = n.iter, 
+                        n.iter = n.iter,
+                        update= "pr",
+                        updatefun=upfun_leaves,
                         thin=thin)
 
-
 dcdiag(leaves.dclone)
+summary(leaves.dclone)
 
-# Now create "leaves2.0" where you add a random effect on Td
-
-
-##understanding the dataclonig
-set.seed(1234)
-n<-50
-beta<-c (1.8,-0.9)
-sigma<- 0.2
-x<- runif(n,0,1)
-X<- model.matrix(~x)
-alpha<- rnorm(n, mean=0, sd=sigma)
-lambda<- exp(alpha+drop(X%*%beta))
-Y<- rpois(n, lambda)
-
-dat<- list(Y=Y, X=X, n=n, np=ncol(X))
-
-glmm.model.up<- function(){
-  for (i in 1:n){
-    Y[i] ~ dpois(lambda[i])
-    lambda[i] <- exp(alpha[i]+ inprod(X[i,], beta[1,]))
-    alpha[i] ~ dnorm(0, 1/sigma^2)
-  }
-
-  for (j in 1:np){
-    beta[1,j] ~ dnorm(pr[j,1], pr[j,2])
-  }
-  log.sigma ~ dnorm(pr[(np+1),1], pr[(np+1),2])
-  sigma <- exp(log.sigma)
-  tau <- 1/ pow(sigma, 2)
-}
-
-upfun <- function(x) {
-    if (missing(x)) {
-       np <- ncol(X)
-       return(cbind(rep(0, np+1),
-           rep(0.001, np+1)))
-    } else {
-       ncl <- nclones(x)
-       if (is.null(ncl))
-          ncl <- 1
-       par <- coef(x)
-       se <- dcsd(x)
-       log.sigma <- mcmcapply(x[,"sigma"], log)
-       par[length(par)] <- mean(log.sigma)
-       se[length(se)] <- sd(log.sigma) * sqrt(ncl)
-       return(cbind(par, se))
-    }
- }
-
-mod<- jags.fit(dat, c("beta","sigma"), glmm.model, n.iter=1000)
-
-summary(mod)
+dcTable <- dctable(leaves.dclone)
 windows()
-plot(mod)
+plot(dcTable)
+plot(dcTable, type="log.var")
+windows()
+plot(dcTable)
 
-#the cloning functions
+mcmc_list <- as.mcmc(leaves.dclone) 
+mcmcapply(leaves.dclone, sd) * sqrt(nclones(leaves.dclone))
 
-dclone(1:5,1) #clone it once
-dclone(1:5,2) # returns a list wit 1,2,3,4,5,1,2,3,4,5
-dclone(matrix(1:4,2,2),2) # clone a matrix one in top of the other
-dclone(data.frame(a=1:2,b=3:4),2) # clone a data frame one on top of the other
-
-dat2<- dclone(dat, n.clones=2, multiply="n", unchanged="np") #atrribute np is number of columns of X which is not cloned
-
-mod2<- jags.fit(dat2, c("beta","sigma"), glmm.model, n.iter=1000)
-summary(mod2)
-summary(mod)
+coef(leaves.dclone)
 
 
-# extra dimensions for timeseries and autoregressive models
 
-obj<- dclone(dcdim(data.matrix(1:5)),2)
+leaves2 <- function() {
+  lkd ~ dnorm(pr[1,1], 1 / pow(pr[1,2], 2))
+  kd <- exp(lkd)
+  ltd ~ dnorm(pr[2,1], 1 / pow(pr[2,2], 2))
+  Td <- exp(ltd)
+  lb ~ dnorm(pr[3,1], 1 / pow(pr[3,2], 2))
+  b  <- exp(lb)
 
+  log.sigmaY ~ dnorm(pr[4,1], 1 / pow(pr[4,2], 2))
+  sigmaY <- exp(log.sigmaY)
+  tauY   <- pow(sigmaY, -2)
 
-beverton.holt<- function(){
-  for (j in 1:k) {
-    for (i in 2:(n+1)) {
-      Y[(i-1),j] ~ dpois(exp(log.N[i,j]))
-      log.N[i,j] ~ dnorm(mu[i,j], 1 / sigma^2)
-      mu[i,j]<- log(lambda) + log.N[(i-1),j]
-        -log(1+beta*exp(log.N[(i-1),j]))
+  for (y in 1:nyear) {
+    uY[y] ~ dnorm(0, tauY)
+  }
+
+  for (i in 1:n) {
+    ltd_y[i] <- ltd + uY[year[i]]   # log-scale Td for obs i
+    Td_y[i]  <- exp(ltd_y[i])
+    pf[i]    <- 1 / (1 + exp(kd * (days[i] - Td_y[i])))
+    a[i]     <- (pf[i] * b) / (1 - pf[i])
+  }
+
+  for (k in 1:K) {
+    for (i in 1:n) {
+      Y[i,k] ~ dbeta(a[i], b)
     }
-    log.N[1,j] ~ dnorm(mu0, 1 / sigma^2)
-    }
-  beta ~ dlnorm(-1,1)
-  sigma ~ dlnorm(0,1)
-  tmp ~ dlnorm(0,1)
-  lambda<- tmp + 1
-  mu0<- log(lambda) + log(2) - log(1+ beta*2)
+  }
 }
 
-paurelia <- c(17, 29, 39, 63, 185, 258, 267, 392, 510, 570, 650, 560, 575, 650, 550, 480, 520, 500)
-bhdat <- list(Y=dcdim(data.matrix(paurelia)), n=length(paurelia), k=1)
-dcbhdat <- dclone(bhdat, n.clones = 5,multiply = "k", unchanged = "n")
+upfun_leaves2 <- function(x) {
+  if (missing(x)) {
+    init_means <- c(
+      lkd = log(0.1),
+      ltd = log(150),
+      lb  = log(20),
+      log.sigmaY = log(1)
+    )
 
-bhmod <- jags.fit(dcbhdat, 
-    c("lambda","beta","sigma"), beverton.holt, 
-    n.iter=1000)
+    init_sds <- c(
+      lkd = 1.5,
+      ltd = 2,
+      lb  = 2,
+      log.sigmaY = 1.5
+    )
+    return(cbind(init_means, init_sds))
+  }
 
-coef(bhmod)
-summary(bhmod)
+  ncl <- nclones(x)
+  if (is.null(ncl)) ncl <- 1
+
+  par <- coef(x)
+  se  <- dcsd(x)
+
+  needed <- c("lkd", "ltd", "lb", "log.sigmaY")
+  missing_pars <- setdiff(needed, names(par))
+  if (length(missing_pars) > 0) {
+    stop("upfun_leaves2 requires monitored parameters: ",
+         paste(missing_pars, collapse = ", "))
+  }
+
+  means <- par[needed]
+  sds <- se[needed] * sqrt(ncl)
+
+  return(cbind(means, sds))
+}
 
 
-updat<- list(Y=Y, X=X, n=n, np=ncol(X), pr= upfun())
-k<- c(1,5,10,20)
-dcmod<- dc.fit(updat, params=c("beta","sigma"), model=glmm.model.up,
-               n.clones=k, multiply="n", unchanged="np",
-               n.iter=1000,upfun=upfun)
+Ymat <- dcdim(data.matrix(beta.samps))  # yields n x 1 initially; dc.fit will properly expand by multiply
 
-summary(dcmod)
-dct<- dctable(dcmod)
-plot(dct)
+data4dclone <- list(
+  K     = 1,            # number of clones along Y dimension
+  Y     = Ymat,         # n x K (dcdim object works with multiply="K")
+  n     = n,            # number of obs (e.g. 1750)
+  days  = all.days,     # length n
+  nyear = n.years,      # number of years (e.g. 7)
+  year  = year.id,      # vector of length n with integers 1:nyear
+  pr    = upfun_leaves2()  # 4 x 2 matrix of (means, SDs)
+)
 
-plot(dct, type="log.var")
+# Parameters to monitor (with priors)
+out.parms <- c("lkd", "ltd", "lb", "log.sigmaY", "Td", "kd", "b", "uY")
 
-dcdiag(dcmod)
+# Run data cloning: clone along n (observation index)
+leaves2.dclone <- dc.fit(
+  data       = data4dclone,
+  params     = out.parms,
+  model      = leaves2,
+  n.clones   = c(1, 5),
+  multiply   = "K",      # clone acrsoss the K dimension (columns)
+  unchanged  = c("n","K","nyear","pr"),      # n (days, year) don't change
+  n.chains   = 3,
+  n.adapt    = 500,
+  n.update   = 10,
+  n.iter     = 1000,
+  thin       = 1,
+  updatefun  = upfun_leaves2,
+  update     = "pr"
+)
 
-coef(dcmod)
-dcsd(dcmod)
-mcmcapply(dcmod,sd) * sqrt(nclones(dcmod))
 
-confint(dcmod)
+summary(leaves2.dclone)
+coef(leaves2.dclone)
 
+dcdiag(leaves2.dclone)
+
+coef(leaves2.dclone)["ltd"] + coef(leaves2.dclone)["uY[1]"]
+exp(coef(leaves2.dclone)["ltd"] + coef(leaves2.dclone)["uY[1]"])
+exp(coef(leaves2.dclone)["ltd"] + coef(leaves2.dclone)["uY[2]"]) 
+
+dctable<- dctable(leaves2.dclone)
+
+windows()
+plot(dctable, which= 1:6, type="log.var")
+
+length(dctable)
+mcmc_list2
