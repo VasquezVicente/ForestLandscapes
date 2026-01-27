@@ -3,69 +3,189 @@
 \usepackage{amsmath}
 \usepackage{mathrsfs}
 \usepackage[margin=1in]{geometry} % Reduce margins to use more of the page
+
 \begin{document}
+\begin{titlepage}
+   \vspace*{\stretch{1.0}}
+   \begin{center}
+      \Large\textbf{Deciduousness Timing Analysis}\\
+      \large\textit{Vicente Vasquez}
+   \end{center}
+   \vspace*{\stretch{2.0}}
+\end{titlepage}
 
-\title{Deciduousnness timing analysis}
-\author{Vicente Vasquez}
+\section{Simulation of Data}
 
+we have collected 7 years of drone data.  Each year we have flown the drone 12 times at 30 day intervals.
+We have mapped the tree crowns of 10 known individuals of the same species. 
+Each individual tree crown was observed in all flight dates. 
+All tree crowns had their leaf coverage percentage estimated utilizing a machine learning algorithm on the drone imagery.
+The leaf coverage percentage values range from 0 to 1, where 0 means no leaves and 1 means full leaf coverage.
 
-Let S be a continous random variable representing the leaf coverage of single tree.
-S takes values in the interval [0,1], where 0 means no leaves and 1 means full leaf coverage.
-For a group of trees, we have $S_i$ for $i=1,...,N$. Every tree is observed at T time points, $t=1,...,T$.
-Finally, S is assumed to follow a Beta distribution with parameters $\alpha$ and $\beta$.
+\begin{verbatim}
+    n.years  <- 7
+    one.year <- seq(from=1,to=365,by=30)
+    samp.days <- rep(one.year,n.years)
+    n.inds <- 10
+    all.days <- rep(samp.days,n.inds)
+    n <- length(all.days)
+    year.id  <- rep(rep(1:n.years, each = length(one.year)), n.inds)
+    indv.id  <- rep(1:n.inds, each = length(samp.days))
+\end{verbatim}
 
-We aim to fit a logistic function with parameters td for the inflection point and kd for the steepness of the curve.
-With maximum leaf coverage 1 and minimum leaf coverage 0, the logistic function is given by:
+Once we have simulated the sampling design, we can simulate the data.
+We will use a simple logistic function to simulate the leaf drop event.
+
 \begin{equation}
-f(t) = \frac{1}{1 + e^{-k_d(t - t_d)}}
+\begin{split}
+    leafDrop(kd, Td, x) = \frac{1}{1 + e^{kd(x - Td)}}\\
+    \mu = kd(x - Td)
+\end{split}
 \end{equation}
 
-We can simulate data in 30 days intervals over 7 years for 10 individuals as follows:
-\begin{verbatim}
-    one.year <- seq(from = 1, to = 365, by = 30)
-    n.years  <- 7
-    samp.days <- rep(one.year, n.years)
-    n.inds   <- 10
-    all.days <- rep(samp.days, n.inds)
-    n        <- length(all.days)
-    year.id  <- rep(rep(1:n.years, each = length(one.year)), n.inds)
-\end{verbatim}
-
-We define a logistic function to generate the true leaf coverage values with a b parameter of 20, kd of 0.1 and td of 150.
-\begin{verbatim}
-    pf_fun <- function(kd, Td, x) {
-    1 / (1 + exp(kd * (x - Td)))
-    }
-
-    b  <- 20
-    kd <- 0.1
-    Td <- 150
-\end{verbatim}
-
-We introduce a year effect to shift the td parameter in year 1 by 30 days.
-\begin{verbatim}
-    uY_true    <- rep(0, n.years)
-    uY_true[1] <- 30        
-    Td_year <- Td + uY_true[year.id]
-\end{verbatim}
-
-Finally, we simulate the observed leaf coverage values using a Beta distribution:
 
 \begin{verbatim}
-    pf_true  <- pf_fun(kd = kd, Td = Td_year, x = all.days)
-    a_true   <- (pf_true * b) / (1 - pf_true)
-    beta.samps <- rbeta(n = n, shape1 = a_true, shape2 = b)
+    logit.pf <- function(kd,Td,x){
+        out <- kd*(x-Td)
+        return(out)
+}
 \end{verbatim}
 
-The simulated data looks like this:
+Where $kd$ is the rate of leaf drop, $Td$ is the day of year when 50\% of leaves are dropped, and $x$ is the day of year.
+
+We will simulate the following parameters:
+\begin{verbatim}
+    sigsq <- 0.45  #noise levels
+    kd <- 0.1      #leaf drop rate
+    Td <- 100      #day of year when 50% of leaves are dropped
+    mu.true <- logit.pf(kd=kd,Td=Td,x=all.days)  
+\end{verbatim}
+
+Sample from a normal distribution with mean $\mu$ and standard deviation $\sqrt{sigsq}$ to get the observed leaf coverage percentage values.
+\begin{verbatim}
+    norm.samps <- rnorm(n=n, mean=mu.true, sd=sqrt(sigsq))
+    y.sims <- 1/(1+exp(norm.samps))
+\end{verbatim}
+
+Perform a logit transformation to map 0-1 values to the real line.
+\begin{verbatim}
+    test.data <- log(1-y.sims) - log(y.sims)
+\end{verbatim}
+
+Clone data along a new dimension for use in the model.
+\begin{verbatim}
+    data4dclone <- list(K=1, X=dcdim(data.matrix(test.data)), n=n, days=all.days)
+\end{verbatim}
+
+Define model formula and parameters.
+
+\begin{verbatim}
+    cl.seq <- c(1,4,8,16);
+    n.iter<-10000;n.adapt<-5000;n.update<-100;thin<-10;n.chains<-3;
+
+    out.parms <- c("kd", "Td", "sigsq")
+    leaves.dclone <- dc.fit(data4dclone, params=out.parms, model=leaves, n.clones=cl.seq,
+                            multiply="K",unchanged="n",
+                            n.chains = n.chains, 
+                            n.adapt=n.adapt, 
+                            n.update=n.update,
+                            n.iter = n.iter, 
+                            thin=thin,
+                            inits=list(lkd=log(0.2), ltd=log(40))
+                            )
+\end{verbatim}
+
 \begin{figure}
     \centering
-    \includegraphics[width=0.8\textwidth]{../../plots/pftrue_betasamps.png}
-    \caption{Simulated leaf coverage data for 10 individuals over 7 years. The red line indicates the true logistic function with year effect in year 1.}
+    \includegraphics[width=0.8\textwidth]{../../plots/simulated_7years.png}
+    \caption{Simulated leaf coverage percentage data for 10 individuals over 7 years. Each color represents a different individual tree crown.}
+\end{figure}
+
+\section{Results}
+
+Posterior summaries after 16 clones:
+\begin{table}[h!]
+\centering
+\begin{tabular}
+{|c|c|c|c|c|}
+\hline
+Parameter & True Value & Posterior Mean & Standard deviation & 95\% Credible Interval\\
+\hline
+$kd$ & 0.1 & 0.1002 & 5.194e-05 &(0.095, 0.109) \\
+$Td$ & 100 & 100.3830 & 7.068e-02 &(100.2455, 100.5213) \\
+$sigsq$ & 0.45 & 0.4699 & 5.738e-03 &(0.4699, 0.4928) \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/results_intercept.png}
+    \caption{Posterior distributions of model parameters after 1, 4, 8, and 16 clones. The variance decrease at 1/k rate}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/results_intercept_log.png}
+    \caption{Parameter estimates in the log scale. Convergence is shown as roughly decrease of 1/k in the posterior variance as the number of clones increase.}
 \end{figure}
 
 
+\subsection{Real data analysis}
 
+Cavallinesia planatifolia is a obligate deciduous tree species found in the Barro colorado island in Panama. 
+We observed 16 individual tree crowns of this species between 04-04-2018 and 03-18-2024 using drone imagery.
+The leaf coverage percentage was estimated using a machine learning algorithm on the drone imagery.
+Here we have subseted all observations from the leaf drop event. 
+Here we have shifted the day of year such as that DOY 1 is at september 1st of each year.
+The inflection point (Td) is expected to occur close to January 1, thus it was neccessary to account for circularity of the data.
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/cava_9shifted.png}
+    \caption{Observed leaf coverage percentage data for 16 individuals of Cavallinesia planatifolia over 7 years. Each color represents a different individual tree crown.}
+\end{figure}
+
+
+Posterior summaries after 16 clones:
+\begin{table}[h!]
+\centering
+\begin{tabular}
+{|c|c|c|c|}
+\hline
+Parameter & Posterior Mean & Standard deviation & 95\% Credible Interval\\
+\hline
+$kd$ & 0.05626 & 0.0004888 & (0.05532, 0.05722) \\
+$Td$ & 125.52889 & 0.6768785 & (124.17523, 126.85004) \\
+$sigsq$ & 12.19795 & 0.1889067 & (11.84159, 12.58489) \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/cava_estimate.png}
+    \caption{Posterior distributions of model parameters after 1, 4, 8, and 16 clones. The variance decrease at 1/k rate}
+\end{figure}
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/cava_estimate_log.png}
+    \caption{Parameter estimates in the log scale. Convergence is shown as roughly decrease of
+    1/k in the posterior variance as the number of clones increase.}
+\end{figure}
+
+By defining the following events: Start of leaf drop (SOD) as the day when 10\% of leaves are dropped, and End of leaf drop (EOD) as the day when 90\% of leaves are dropped, and Td as the day when 50\% of leaves are dropped, we can calculate the following:
+\itemize{
+    \item SOD = November 26th 
+    \item Td = January 4th
+    \item EOD = February 12th
+}
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/cava_9shifted_result.png}
+    \caption{Predicted line using posterior mean estimates for kd and Td overlaid on observed data.}
+\end{figure}
 
 
 \end{document}
