@@ -14,7 +14,7 @@
    \vspace*{\stretch{2.0}}
 \end{titlepage}
 
-\section{Simulation of Data}
+\section{Simulation of Data: Global intecept model}
 
 we have collected 7 years of drone data.  Each year we have flown the drone 12 times at 30 day intervals.
 We have mapped the tree crowns of 10 known individuals of the same species. 
@@ -132,7 +132,7 @@ $sigsq$ & 0.45 & 0.4699 & 5.738e-03 &(0.4699, 0.4928) \\
 \end{figure}
 
 
-\subsection{Real data analysis}
+\subsection{Global intercept model: Cavallinesia planatifolia}
 
 Cavallinesia planatifolia is a obligate deciduous tree species found in the Barro colorado island in Panama. 
 We observed 16 individual tree crowns of this species between 04-04-2018 and 03-18-2024 using drone imagery.
@@ -186,6 +186,214 @@ By defining the following events: Start of leaf drop (SOD) as the day when 10\% 
     \includegraphics[width=0.8\textwidth]{../../plots/cava_9shifted_result.png}
     \caption{Predicted line using posterior mean estimates for kd and Td overlaid on observed data.}
 \end{figure}
+
+\subsection{Simulation of Data: Year effects model}
+
+The objective of this model is to obtain a obtain a year-specific intercept
+for every year in the data set.
+We assume that every year has a different mid-point (Td) for the leaf drop event, here represented as yTd. 
+We have found that the yTd is identifiable when simulating data with at least 7 years. yTd can be decomposed as follows:
+\begin{equation}
+    yTd = Td + u_{Td}
+\end{equation}
+Where $u_{Td}$ is a random effect that represents the annual deviation from the global mid-point (Td) and arises from
+a normal distribution with mean 0 and standard deviation annual variation (aV).
+
+The following parameters are simulated:
+\begin{verbatim}
+    n.indv<-16
+    sigsq <- 0.45  #noise levels
+    kd <- 0.1      #leaf drop rate
+    Td <- 100      #day of year when 50% of leaves are dropped
+    aV<- 15        #anual variability in Td
+                        
+    uTd <- rnorm(n=n.years, mean=0, sd=aV)
+    yTd <- Td + uTd[year.id]
+    mu.true <- logit.pf(kd=kd,Td=yTd,x=all.days)
+    norm.samps <- rnorm(n=n, mean=mu.true, sd=sqrt(sigsq))
+    y.sims <- 1/(1+exp(norm.samps))
+\end{verbatim}
+
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/interaction_model.png}
+    \caption{Simulated leaf coverage percentage data for 16 individuals over 7 years with year effects. Each line represents a different individaul tree crown in a different years. Each color represents a year.}
+\end{figure}
+
+\newpage
+
+We define the following model in JAGS. We stablish uninformative priors from normal distributions for the parameters
+kd, sigsq, Td, and aV. We set up a for loop to estimate the year effects (uY) for every year in the data set.
+Then we enforce the uY to have mean 0 by subtracting the overall mean of the uY values (u\_bar).
+Finally we calculate the year-specific mid-point (yTd) by adding the global mid-point (Td) and the year effects (uY).
+\begin{verbatim}
+   leaves_year_global <- function(){
+    lkd ~ dnorm(0,0.4)
+    kd <- exp(lkd)
+
+    ls ~ dnorm(0,1)
+    sigsq <- pow(exp(ls),2)
+
+    ltd ~ dnorm(log(100),1)
+    Td <- exp(ltd)
+
+    log.aV ~ dnorm(0,1)
+    aV <- exp(log.aV)
+    tau <- 1/pow(aV,2) 
+
+    for (y in min(year):max(year)) {
+        uRaw[y] ~ dnorm(0, tau)
+    }
+    
+    u_bar <- mean(uRaw[])
+
+    for (y in min(year):max(year)) {
+        uY[y] <- uRaw[y] - u_bar
+        yTd[y] <- Td + uY[y]
+    }
+    
+    for(j in 1:n){
+        muf[j] <-  kd*(days[j]-yTd[year[j]])
+    }
+
+    for(k in 1:K){
+        for(i in 1:n){
+        X[i,k] ~ dnorm(muf[i],1/sigsq)
+        } 
+    }
+    }
+\end{verbatim}
+
+We set up the data for dclone. This time we utilize dc.parfit to parallelize the fitting process in a balancing approach
+that distribute the k-clones across multiple workers.
+
+\begin{verbatim}
+    test.data <- log(1-y.sims) - log(y.sims)
+    data4dclone <- list(K=1, X=dcdim(data.matrix(test.data)), n=n, days=all.days, year=year.id, nyear=n.years)
+
+    cl.seq <- c(1,4,8,16);
+    n.iter<-10000;n.adapt<-5000;n.update<-100;thin<-10;n.chains<-3;
+
+    cl <- makePSOCKcluster(3) 
+    annual_model<- dc.parfit(cl,data4dclone, params=c("Td","kd","sigsq","uY"), model=leaves_year_global, n.clones=cl.seq,
+                            multiply="K",unchanged=c("n","nyear"),
+                            n.chains = n.chains, 
+                            n.adapt=n.adapt, 
+                            n.update=n.update,
+                            n.iter = n.iter, 
+                            thin=thin,
+                            partype= "balancing",
+                            inits=list(lkd=log(0.2),ltd=log(90))
+    )
+\end{verbatim}
+
+
+\subsection{Results: Interannual variability}
+Lets inspect the summaries of the posterior distributions after 16 clones.
+We have recover the true parameter values with good accuracy. The R-hat values
+are all close to 1, indicating convergence of the chains.
+Next we inspect the diagnostic plots to ensure convergence of the data cloning.
+The diagnostic plots show that the posterior variance decreases at a rate of 1/k as the number of clones increase,
+indicating that the parameters are identifiable under this model.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\textwidth]{../../plots/simulation_inter.png}
+    \caption{Posterior estimate after 16 clones for the year effects model.}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\textwidth]{../../plots/simulated_inter_diagnostic.png}
+    \caption{Posterior estimate after 16 clones for the year effects model. Variance decreases at 1/k rate as the number of clones increase.}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\textwidth]{../../plots/simulated_inter_diagnostic_log.png}
+    \caption{Parameter estimates in the log scale. Convergence is shown as roughly decrease of 1/k in the posterior variance as the number of clones increase.}
+\end{figure}
+
+\clearpage
+\section{Interannual variability in Cavallinesia planatifolia}
+
+We run the exact same model as above but now using the observed data for Cavallinesia planatifolia.
+\begin{verbatim}
+    cl.seq <- c(1,4,8,16);
+    n.iter<-10000;n.adapt<-5000;n.update<-100;thin<-10;n.chains<-3;
+    cl <- makePSOCKcluster(3)
+    cava.year <- dc.parfit(cl, data4dclone,
+                            params=c("Td","kd","sigsq","uY"),
+                            model=leaves_year_global, n.clones=cl.seq,
+                            multiply="K",unchanged=c("n","nyear"),
+                            n.chains = n.chains, 
+                            n.adapt=n.adapt, 
+                            n.update=n.update,
+                            n.iter = n.iter, 
+                            thin=thin,
+                            inits=list(lkd=log(0.1))
+    )
+\end{verbatim}
+
+We obtain the following posterior summaries after 16 clones:
+Recall page 4 for the global intercept model results. Showing $Td$ = 125.53, $kd$ = 0.05626, and $sigsq$ = 12.19795.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/cava_estimate_inter.png}
+    \caption{Posterior estimate after 16 clones for the year effects model.}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/cava_year_effects_model.png}
+    \caption{Posterior estimate after 16 clones for the year effects model. Ribbons represent 95\% credible intervals for the model parameters uY (year effects).
+    Color lines represent the predicted leaf coverage percentage for every phenological year in the data set.}
+\end{figure}
+
+Lets make sure we have converge by inspecting the diagnostic plots.
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/cava_year_log.png}
+    \caption{Posterior estimate after 16 clones for the year effects model. Variance decreases at 1/k rate as the number of clones increase.
+    uY[1] does not show convergence at the desiered 1/k rate, indicating that this parameter is not fully identifiable. This is expected
+    since uY[1] corresponds to 2017-2018 phenological year, which has almost no data.}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../../plots/cava_year_log2.png}
+    \caption{Parameter estimates in the log scale. Convergence is shown as roughly decrease of 1/k in the posterior variance as the number of clones increase.
+    }
+\end{figure}
+
+The conditions for convergence are mostly met. We can use the dcdiag function to further inspect the convergence of the model.
+These include calculating the largest eigenvalue of the posterior variance covariance matrix (lambdamax.diag), or calculating
+the mean squared error and another correlation-like fit statistic () based on a approximation (chisq.diag with a plot method).
+The maximum eigenvalue reflects the degeneracy of the posterior distribution, while the two fit measures reflect the adequacy
+of the normal approximation. All three statistics should converge to zero as increases. If this happens, different prior
+specifications are no longer influencing the results (Lele et al. 2007, 2010).
+
+
+\begin{table}
+\centering
+\begin{tabular}
+{|c|c|c|c|c|}
+\hline
+n.clones & lambda.max & ms.error & r.squared & r.hat\\
+\hline
+1 & 155.56060 & 6.8022797 & 0.021560173 & NA \\
+4 & 56.14603 & 0.9307438 & 0.004997540 & 1.005317 \\
+8 & 29.06423 & 0.8203689 & 0.004970998 & 1.001698 \\
+16 & 15.26513 & 0.4958809 & 0.002832901 & 1.009636 \\
+\hline
+\end{tabular}
+\end{table}
+
+The diagnostics indicate that we need to run the model for more iterations to achieve better convergence. or use better priors.
+
+
+
 
 
 \end{document}

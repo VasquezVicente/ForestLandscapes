@@ -1,5 +1,9 @@
 library(pacman)
-p_load(dclone, MASS, ggplot2, snow, tidyverse)
+p_load(dclone, MASS, ggplot2, snow, tidyverse, parallel)
+logit.pf <- function(kd,Td,x){
+  out <- kd*(x-Td)
+  return(out)
+}
 
 n.years  <- 7
 one.year <- seq(from=1,to=365,by=30)
@@ -10,10 +14,6 @@ n <- length(all.days)
 year.id  <- rep(rep(1:n.years, each = length(one.year)), n.inds)
 indv.id  <- rep(1:n.inds, each = length(samp.days))
 
-logit.pf <- function(kd,Td,x){
-  out <- kd*(x-Td)
-  return(out)
-}
 
 sigsq <- 0.45  #noise levels 
 kd <- 0.1
@@ -65,15 +65,16 @@ data4dclone <- list(K=1, X=dcdim(data.matrix(test.data)), n=n, days=all.days)
 cl.seq <- c(1,4,8,16);
 n.iter<-10000;n.adapt<-5000;n.update<-100;thin<-10;n.chains<-3;
 
+cl<- makePSOCKcluster(3)
 out.parms <- c("kd", "Td", "sigsq")
-leaves.dclone <- dc.fit(data4dclone, params=out.parms, model=leaves, n.clones=cl.seq,
+leaves.dclone <- dc.parfit(cl,data4dclone, params=out.parms, model=leaves, n.clones=cl.seq,
                         multiply="K",unchanged="n",
                         n.chains = n.chains, 
                         n.adapt=n.adapt, 
                         n.update=n.update,
                         n.iter = n.iter, 
-                        thin=thin,
-                        inits=list(lkd=log(0.2), ltd=log(40))
+                        thin=thin
+                        #inits=list(lkd=log(0.2), ltd=log(40))
                         )
 
 dcdiag(leaves.dclone)
@@ -89,7 +90,7 @@ plot(dctable, type="log.var")
 #lets try real data with the same model
 
 
-data<- read.csv("C:\\Users\\Vicente\\repo\\ForestLandscapes\\timeseries\\dataset_extracted\\cavallinesia.csv")
+data<- read.csv("timeseries/dataset_extracted/cavallinesia.csv")
 head(data)
 
 data <- data %>%
@@ -106,8 +107,6 @@ data <- data %>%
     pheno_year= as.factor(pheno_year),
     tree_year= as.factor(paste0(tree, "_", pheno_year))
   )
-
-
 
 trees<- unique(data$tree)
 years<- unique(data$pheno_year)
@@ -131,8 +130,6 @@ for (i in 1:length(trees)) {
     }
       
   }}
-
-
 
 windows()
 ggplot(all_before_threshold, aes(x=day, y=y_norm, color=as.factor(tree_year))) +
@@ -160,13 +157,14 @@ cava.intercept <- dc.fit(data4dclone, params=out.parms, model=leaves, n.clones=c
 
 
 summary(cava.intercept)
-
 dcdiag(cava.intercept)
 cavatable <- dctable(cava.intercept)
 windows()
 plot(cavatable)
 windows()
 plot(cavatable, type="log.var")
+
+#generate predicted values
 logit.pf(kd=coef(cava.intercept)["kd"],Td=coef(cava.intercept)["Td"],x=seq(1,365,1))->LC_values
 LC_values<- 1/(1+exp(LC_values))
 
@@ -221,381 +219,366 @@ ggplot(all_before_threshold,
   geom_vline(xintercept = c(87,126, 165), linetype = "dashed", color = "black")
   
 
-#lets show it circularly
-data<- data %>%
-  mutate(
-    is_leap = if_else(year %% 4 == 0 & (year %% 100 != 0 | year %% 400 == 0), TRUE, FALSE),
-    rad = if_else(is_leap, 2 * pi * DOY / 366, 2 * pi * DOY / 365)
-  )
+######################
+#interannual simulation
+######################
+##Simulate year effects
 
-data$month <- factor(data$month, levels = 1:12, labels = month.abb)
-
-windows()
-ggplot(data, aes(x = month, y = 1-y_norm)) +
-  geom_boxplot()+
-  coord_polar() 
-
-# Simulate data
-one.year <- seq(from = 1, to = 365, by = 30)
 n.years  <- 7
-samp.days <- rep(one.year, n.years)
-n.inds   <- 20
-all.days <- rep(samp.days, n.inds)
-n        <- length(all.days)
+one.year <- seq(from=1,to=365,by=30)
+samp.days <- rep(one.year,n.years)
+n.inds <- 10
+all.days <- rep(samp.days,n.inds)
+n <- length(all.days)
 year.id  <- rep(rep(1:n.years, each = length(one.year)), n.inds)
 indv.id  <- rep(1:n.inds, each = length(samp.days))
 
-pf_fun <- function(kd, Td, x) {
-  1 / (1 + exp(kd * (x - Td)))
-}
+sigsq <- 0.45  #noise levels
+kd <- 0.1      #leaf drop rate
+Td <- 100      #day of year when 50% of leaves are dropped
+aV<- 15        #anual variability in Td
+                    
+yTd <- rnorm(n=n.years, mean=Td, sd=aV)
+mu.true <- logit.pf(kd=kd,Td=yTd[year.id],x=all.days)
+norm.samps <- rnorm(n=n, mean=mu.true, sd=sqrt(sigsq))
+y.sims <- 1/(1+exp(norm.samps))
 
-b  <- 20
-kd <- 0.1
-Td <- 150
-
-# Generate year effects on Td
-uY_true    <- rep(0, n.years)
-uI_true    <- rep(0, n.inds)
-Td_year_indv<- Td + uY_true[year.id] + uI_true[indv.id]       
-
-
-# simulate samples
-pf_true  <- pf_fun(kd = kd, Td = Td_year_indv, x = all.days)
-a_true   <- (pf_true * b) / (1 - pf_true)
-beta.samps <- rbeta(n = n, shape1 = a_true, shape2 = b)
-
-# overlay both series in one plot
 df<- data.frame(
-  days = all.days,
-  year = as.factor(year.id),
-  indv = as.factor(indv.id),
-  beta = beta.samps,
-  pf   = pf_true
-)
+  days=all.days,
+  indv=indv.id,
+  year=year.id,
+  y=y.sims
+) %>% mutate(indv_year= as.factor(paste0(indv,"_",year)))
+
 windows()
-ggplot(df[df$indv %in% c(1,2,3), ], aes(x = days, y = beta, color = indv)) +
-  geom_point(alpha = 0.5) +
-  geom_line(aes(y = pf), size = 1)+
-  labs(title = "Simulated beta samples and true phenology curves",
-       y = "Beta samples and true pf",
-       x = "Day of year") +
+ggplot(df, aes(x=days, y=y, group=as.factor(indv_year))) +
+  geom_line(aes(color=as.factor(year))) +
+  labs(title="Simulated phenology data",
+       y="Simulated y",
+       x="Day of year") +
   theme_minimal()
 
-     
-leaves <- function() {
-  lkd ~ dnorm(pr[1,1], 1 / pow(pr[1,2],2))
+
+leaves_year <- function(){
+  lkd ~ dnorm(0,0.4)
   kd <- exp(lkd)
-  ltd ~ dnorm(pr[2,1], 1 / pow(pr[2,2],2))
-  Td <- exp(ltd)
-  lb ~ dnorm(pr[3,1], 1 / pow(pr[3,2],2))
-  b <- exp(lb)
 
-  for (j in 1:n) {
-    pf[j] <- 1 / (1 + exp(kd * (days[j] - Td)))
-    a[j]  <- (pf[j] * b) / (1 - pf[j])
+  ls ~ dnorm(0,1)
+  sigsq <- pow(exp(ls),2)
+
+  for (y in min(year):max(year)) {
+  yTd[y] ~ dnorm(90, 0.5)
   }
-  for (k in 1:K) {
-    for (i in 1:n) {
-      Y[i,k] ~ dbeta(a[i], b)
-    }
+  
+  for(j in 1:n){
+    muf[j] <-  kd*(days[j]-yTd[year[j]])
+  }
+
+  for(k in 1:K){
+    for(i in 1:n){
+      X[i,k] ~ dnorm(muf[i],1/sigsq)
+    } 
   }
 }
+unique(all_before_threshold$year)
+test.data <- log(1-y.sims) - log(y.sims)
+data4dclone <- list(K=1, X=dcdim(data.matrix(test.data)), n=n, days=all.days, year=year.id, nyear=n.years)
 
+cl.seq <- c(1,4,8,16);
+n.iter<-10000;n.adapt<-5000;n.update<-100;thin<-10;n.chains<-3;
 
-upfun_leaves <- function(x) {
-  if (missing(x)) {
-    means <- c(log(0.1), log(150), log(20))
-    sds   <- c(2, 2, 2)
-    return(cbind(means, sds))
-  }
-
-  ncl <- nclones(x) # When the function kicks in with another k cloning step greater than 1. So the function says how many clones are there in this iteration
-  if (is.null(ncl)) ncl <- 1   # of course, if no cloning yet, ncl=1
-
-  par <- coef(x)  #we return the posterior means of the parameters GIVEN BY OUT.PARAMS
-  se  <- dcsd(x)  #we return the posterior SDs of the parameters GIVEN BY OUT.PARAMS
-
-  needed <- c("lkd", "ltd", "lb")  # needed parameters, only priors
-  missing_pars <- setdiff(needed, names(par))
-  if (length(missing_pars) > 0) {
-    stop("upfun_leaves requires monitored parameters: ",
-         paste(missing_pars, collapse = ", "))
-  }
-  means <- par[needed]   
-  sds   <- se[needed] * sqrt(ncl)  # multiply by sqrt(ncl) to get un-cloned SDs
-  return(cbind(means, sds))
-}
-
-
-dat<- list(K=1,                               #K is a loop index for data cloning
-           Y=dcdim(data.matrix(beta.samps)),  
-           n=n,
-           days=all.days,
-           pr = upfun_leaves())
-cl.seq <- c(1,5,10,20); # flone sequence
-n.iter<-1000;n.adapt<-500;n.update<-10;thin<-1;n.chains<-3;
-out.parms <- c("lkd", "ltd", "lb", "kd", "Td", "b")
-leaves.dclone <- dc.fit(dat, params=out.parms, model=leaves, n.clones=cl.seq,
-                        multiply="K",unchanged=c("n"),
+cl <- makePSOCKcluster(3) 
+annual_model<- dc.parfit(cl, data4dclone, params=c("kd","sigsq","yTd"), model=leaves_year, n.clones=cl.seq,
+                        multiply="K",unchanged=c("n","nyear"),
                         n.chains = n.chains, 
                         n.adapt=n.adapt, 
                         n.update=n.update,
-                        n.iter = n.iter,
-                        update= "pr",
-                        updatefun=upfun_leaves,
-                        thin=thin)
+                        n.iter = n.iter, 
+                        thin=thin,
+                        inits=list(lkd=log(0.2))
+)
 
-dcdiag(leaves.dclone)
-summary(leaves.dclone)
+summary(annual_model)
+yTd
 
-dcTable <- dctable(leaves.dclone)
+mean(yTd)
+sd(yTd)
+ 
+mean(coef(annual_model)[grep("yTd", names(coef(annual_model)))])
+sd(coef(annual_model)[grep("yTd", names(coef(annual_model)))])
+
+
+
+dcdiag(annual_model)
+annual_table <- dctable(annual_model)
 windows()
-plot(dcTable)
-plot(dcTable, type="log.var")
+plot(annual_table,1:6)
 windows()
-plot(dcTable)
-
-mcmc_list <- as.mcmc(leaves.dclone) 
-mcmcapply(leaves.dclone, sd) * sqrt(nclones(leaves.dclone))
-
-coef(leaves.dclone)
+plot(annual_table, type="log.var",6:8)
 
 
+######################
+#interannual simulation
+######################
+##Simulate year effects, one global intercept and a random effect for the shift
 
-leaves2 <- function() {
-  lkd ~ dnorm(pr[1,1], 1 / pow(pr[1,2], 2))
+n.years  <- 7
+one.year <- seq(from=1,to=365,by=30)
+samp.days <- rep(one.year,n.years)
+n.inds <- 16
+
+all.days <- rep(samp.days,n.inds)
+n <- length(all.days)
+year.id  <- rep(rep(1:n.years, each = length(one.year)), n.inds)
+indv.id  <- rep(1:n.inds, each = length(samp.days))
+
+sigsq <- 0.45  #noise levels
+kd <- 0.1      #leaf drop rate
+Td <- 100      #day of year when 50% of leaves are dropped
+aV<- 15        #anual variability in Td
+                    
+uTd <- rnorm(n=n.years, mean=0, sd=aV)
+yTd <- Td + uTd[year.id]
+mu.true <- logit.pf(kd=kd,Td=yTd,x=all.days)
+norm.samps <- rnorm(n=n, mean=mu.true, sd=sqrt(sigsq))
+y.sims <- 1/(1+exp(norm.samps))
+
+df<- data.frame(
+  days=all.days,
+  indv=indv.id,
+  year=year.id,
+  y=y.sims
+) %>% mutate(indv_year= as.factor(paste0(indv,"_",year)))
+
+windows()
+ggplot(df, aes(x=days, y=y, group=as.factor(indv_year))) +
+  geom_line(aes(color=as.factor(year))) +
+  labs(title="Simulated phenology data",
+       y="Simulated y",
+       x="Day of year") +
+  theme_minimal()
+
+
+leaves_year_global <- function(){
+  lkd ~ dnorm(0,0.4)
   kd <- exp(lkd)
-  ltd ~ dnorm(pr[2,1], 1 / pow(pr[2,2], 2))
+
+  ls ~ dnorm(0,1)
+  sigsq <- pow(exp(ls),2)
+
+  ltd ~ dnorm(log(120),1)
   Td <- exp(ltd)
-  lb ~ dnorm(pr[3,1], 1 / pow(pr[3,2], 2))
-  b  <- exp(lb)
 
-  log.sigmaY ~ dnorm(pr[4,1], 1 / pow(pr[4,2], 2))
-  sigmaY <- exp(log.sigmaY)
-  tauY   <- pow(sigmaY, -2)
+  log.aV ~ dnorm(log(15),1)
+  aV <- exp(log.aV)
+  tau <- 1/pow(aV,2) 
 
-  for (y in 1:nyear) {
-  zY[y] ~ dnorm(0,1)
-  uY[y] <- sigmaY * zY[y]
+  for (y in min(year):max(year)) {
+    uRaw[y] ~ dnorm(0, tau)
+  }
+  
+  u_bar <- mean(uRaw[min(year):max(year)])
+
+  for (y in min(year):max(year)) {
+    uY[y] <- uRaw[y] - u_bar
+    yTd[y] <- Td + uY[y]
+  }
+  
+  for(j in 1:n){
+    muf[j] <-  kd*(days[j]-yTd[year[j]])
   }
 
-  for (i in 1:n) {
-    ltd_y[i] <- ltd + uY[year[i]]   # log-scale Td for obs i
-    Td_y[i]  <- exp(ltd_y[i])
-    pf[i]    <- 1 / (1 + exp(kd * (days[i] - Td_y[i])))
-    a[i]     <- (pf[i] * b) / (1 - pf[i])
-  }
-
-  for (k in 1:K) {
-    for (i in 1:n) {
-      Y[i,k] ~ dbeta(a[i], b)
-    }
+  for(k in 1:K){
+    for(i in 1:n){
+      X[i,k] ~ dnorm(muf[i],1/sigsq)
+    } 
   }
 }
 
-upfun_leaves2 <- function(x) {
-  if (missing(x)) {
-    init_means <- c(
-      lkd = log(0.1),
-      ltd = log(150),
-      lb  = log(20),
-      log.sigmaY = log(1)
-    )
+test.data <- log(1-y.sims) - log(y.sims)
+data4dclone <- list(K=1, X=dcdim(data.matrix(test.data)), n=n, days=all.days, year=year.id, nyear=n.years)
 
-    init_sds <- c(
-      lkd = 1.5,
-      ltd = 2,
-      lb  = 2,
-      log.sigmaY = 1.5
-    )
-    return(cbind(init_means, init_sds))
-  }
+cl.seq <- c(1,4,8,16);
+n.iter<-10000;n.adapt<-5000;n.update<-100;thin<-10;n.chains<-3;
 
-  ncl <- nclones(x)
-  if (is.null(ncl)) ncl <- 1
-
-  par <- coef(x)
-  se  <- dcsd(x)
-
-  needed <- c("lkd", "ltd", "lb", "log.sigmaY")
-  missing_pars <- setdiff(needed, names(par))
-  if (length(missing_pars) > 0) {
-    stop("upfun_leaves2 requires monitored parameters: ",
-         paste(missing_pars, collapse = ", "))
-  }
-
-  means <- par[needed]
-  sds <- se[needed] * sqrt(ncl)
-
-  return(cbind(means, sds))
-}
-
-
-Ymat <- dcdim(data.matrix(beta.samps))  # yields n x 1 initially; dc.fit will properly expand by multiply
-
-data4dclone <- list(
-  K     = 1,            # number of clones along Y dimension
-  Y     = Ymat,         # n x K (dcdim object works with multiply="K")
-  n     = n,            # number of obs (e.g. 1750)
-  days  = all.days,     # length n
-  nyear = n.years,      # number of years (e.g. 7)
-  year  = year.id,      # vector of length n with integers 1:nyear
-  pr    = upfun_leaves2()  # 4 x 2 matrix of (means, SDs)
+cl <- makePSOCKcluster(3) 
+annual_model<- dc.parfit(cl,data4dclone, params=c("Td","kd","sigsq","uY"), model=leaves_year_global, n.clones=cl.seq,
+                        multiply="K",unchanged=c("n","nyear"),
+                        n.chains = n.chains, 
+                        n.adapt=n.adapt, 
+                        n.update=n.update,
+                        n.iter = n.iter, 
+                        thin=thin,
+                        partype= "balancing",
+                        inits=list(lkd=log(0.2),ltd=log(90))
 )
 
-# Parameters to monitor (with priors)
-out.parms <- c("lkd", "ltd", "lb", "log.sigmaY", "Td", "kd", "b", "uY")
-
-cl <- makePSOCKcluster(3)
-# Run data cloning: clone along n (observation index)
-leaves2.dclone <- dc.parfit(
-  cl         = cl,
-  data       = data4dclone,
-  params     = out.parms,
-  model      = leaves2,
-  n.clones   = c(1, 5, 10, 20),
-  multiply   = "K",      # clone acrsoss the K dimension (columns)
-  unchanged  = c("n","K","nyear","pr"),      # n (days, year) don't change
-  n.chains   = 3,
-  n.adapt    = 500,
-  n.update   = 100,
-  n.iter     = 10000,
-  thin       = 10,
-  partype    = "parchains",   
-  updatefun  = upfun_leaves2,
-  update     = "pr"
-)
-
-
-
-summary(leaves2.dclone)
-coef(leaves2.dclone)
-
-dcdiag(leaves2.dclone)
-
-coef(leaves2.dclone)["ltd"] + coef(leaves2.dclone)["uY[1]"]
-exp(coef(leaves2.dclone)["ltd"] + coef(leaves2.dclone)["uY[1]"])
-exp(coef(leaves2.dclone)["ltd"] + coef(leaves2.dclone)["uY[2]"]) 
-
-dctable<- dctable(leaves2.dclone)
+sum_model <- summary(annual_model)
+table_summary <- round(cbind(True_Value = c(Td, kd, sigsq, uTd), 
+                             sum_model$statistics[, c("Mean", "SD", "R hat")], 
+                             sum_model$quantiles[, c("2.5%", "97.5%")]), 2)
 
 windows()
-plot(dctable, which= 1:6, type="log.var")
-
-length(dctable)
-mcmc_list2
+grid.table(table_summary)
 
 
-## trying to add more random effects: individual-level effects
-leaves3 <- function() {
-  lkd ~ dnorm(pr[1,1], 1 / pow(pr[1,2], 2))
-  kd  <- exp(lkd)
-  ltd ~ dnorm(pr[2,1], 1 / pow(pr[2,2], 2))
-  lb ~ dnorm(pr[3,1], 1 / pow(pr[3,2], 2))
-  b  <- exp(lb)
+dcdiag(annual_model)
+annual_table <- dctable(annual_model)
+windows()
+plot(annual_table,1:6)
+windows()
+plot(annual_table, type="log.var",7:10)
+windows()
+plot(annual_table, type="log.var",1:6)
 
-  log.sigmaY ~ dnorm(pr[4,1], 1 / pow(pr[4,2], 2))
-  sigmaY <- exp(log.sigmaY)
-  tauY   <- pow(sigmaY, -2)
+#######################################
+## real data with year effects model
+#####################################
+test.data <- log(1-all_before_threshold$y_norm) - log(all_before_threshold$y_norm)
+all_before_threshold$pheno_year <- as.numeric(as.factor(all_before_threshold$pheno_year))
 
-  log.sigmaI ~ dnorm(pr[5,1], 1 / pow(pr[5,2], 2))
-  sigmaI <- exp(log.sigmaI)
-  tauI   <- pow(sigmaI, -2)
+data4dclone <- list(K=1,
+                    X=dcdim(data.matrix(test.data)),
+                    n=nrow(all_before_threshold),
+                    days=all_before_threshold$day,
+                    year=all_before_threshold$pheno_year,
+                    nyear=length(unique(all_before_threshold$pheno_year)))
 
-  for (y in 1:nyear) {
-    uY[y] ~ dnorm(0, tauY)
-  }
-
-  for (j in 1:nind) {
-    uI[j] ~ dnorm(0, tauI)
-  }
-
-  for (i in 1:n) {
-    ltd_y[i] <- ltd + uY[year[i]] + uI[indiv[i]]   # still log-scale
-    Td_y[i]  <- exp(ltd_y[i])
-    pf[i]    <- 1 / (1 + exp(kd * (days[i] - Td_y[i])))
-    a[i]     <- (pf[i] * b) / (1 - pf[i])
-  }
-
-  for (k in 1:K) {
-    for (i in 1:n) {
-      Y[i,k] ~ dbeta(a[i], b)
-    }
-  }
-}
-
-upfun_leaves3 <- function(x) {
-  if (missing(x)) {
-    init_means <- c(
-      lkd = log(0.1),
-      ltd = log(150),
-      lb  = log(20),
-      log.sigmaY = log(1),
-      log.sigmaI = log(1)    # initial guess for individual SD
-    )
-
-    init_sds <- c(
-      lkd = 1.5,
-      ltd = 2,
-      lb  = 2,
-      log.sigmaY = 1.5,
-      log.sigmaI = 1.5
-    )
-    return(cbind(init_means, init_sds))
-  }
-
-  ncl <- nclones(x)
-  if (is.null(ncl)) ncl <- 1
-
-  par <- coef(x)
-  se  <- dcsd(x)
-
-  needed <- c("lkd", "ltd", "lb", "log.sigmaY", "log.sigmaI")
-  missing_pars <- setdiff(needed, names(par))
-  if (length(missing_pars) > 0) {
-    stop("upfun_leaves3 requires monitored parameters: ",
-         paste(missing_pars, collapse = ", "))
-  }
-
-  means <- par[needed]
-  sds <- se[needed] * sqrt(ncl)
-
-  return(cbind(means, sds))
-}
-
-Ymat <- dcdim(data.matrix(beta.samps))  # yields n x 1 initially; dc.fit will properly expand by multiply
-
-data4dclone3 <- list(
-  K     = 1,            # number of clones along Y dimension
-  Y     = Ymat,         # n x K (dcdim object works with multiply="K")
-  n     = n,            # number of obs (e.g. 1750)
-  nind  = n.inds,      # number of individuals
-  days  = all.days,     # length n
-  nyear = n.years,      # number of years (e.g. 7)
-  year  = year.id,      # vector of length n with integers 1:nyear
-  indiv = indv.id,      # vector of length n with integers 1:nind
-  pr    = upfun_leaves3()  # 5 x 2 matrix of (means, SDs)
-)
-
-# Parameters to monitor (with priors)
-out.parms <- c("lkd", "ltd", "lb", "log.sigmaY", "Td", "kd", "b", "uY")
-
+cl.seq <- c(1,5,10,20);
+n.iter<-10000;n.adapt<-5000;n.update<-100;thin<-10;n.chains<-3;
 cl <- makePSOCKcluster(3)
-# Run data cloning: clone along n (observation index)
-leaves3.dclone <- dc.parfit(
-  cl         = cl,
-  data       = data4dclone,
-  params     = out.parms,
-  model      = leaves3,
-  n.clones   = c(1, 5, 10),
-  multiply   = "K",      # clone acrsoss the K dimension (columns)
-  unchanged  = c("n","K","nyear","pr","nind"),      # n (days, year) don't change
-  n.chains   = 3,
-  n.adapt    = 50,
-  n.update   = 10,
-  n.iter     = 1000,
-  thin       = 1,
-  partype    = "parchains",   
-  updatefun  = upfun_leaves3,
-  update     = "pr"
+cava.year <- dc.parfit(cl, data4dclone, params=c("Td","kd","sigsq","uY"), model=leaves_year_global, n.clones=cl.seq,
+                        multiply="K",unchanged=c("n","nyear"),
+                        n.chains = n.chains, 
+                        n.adapt=n.adapt, 
+                        n.update=n.update,
+                        n.iter = n.iter, 
+                        thin=thin,
+                        inits=list(lkd=log(0.1),ltd=log(120), log.aV=log(7)))
+
+
+#summmary of the model
+summary(cava.year)
+dcdiag(cava.year)
+quantile(cava.year, probs = c(0.025))[["Td"]]
+sum_model <- summary(cava.year)
+table_summary <- round(cbind(sum_model$statistics[, c("Mean", "SD", "R hat")], 
+                             sum_model$quantiles[, c("2.5%", "97.5%")]), 2)
+
+windows()
+grid.table(table_summary)
+
+results_df <- data.frame(
+  x=numeric(),
+  y=numeric(),
+  doy=numeric(),
+  date=as.Date(character())
 )
+for (year in 1:length(unique(all_before_threshold$pheno_year))) {
+
+  cat("Estimated uY for year", year, ":", 
+      coef(cava.year)[paste0("uY[", year, "]")], "\n")
+
+  x <- seq(1, 365)
+
+  mu <- coef(cava.year)[["Td"]] + coef(cava.year)[[paste0("uY[", year, "]")]]
+  mu_low <- coef(cava.year)[["Td"]] + 
+            quantile(cava.year, probs = c(0.025))[[paste0("uY[", year, "]")]]
+  mu_high <- coef(cava.year)[["Td"]] + 
+             quantile(cava.year, probs = c(0.975))[[paste0("uY[", year, "]")]]
+
+  # Mean
+  LC_mean <- logit.pf(kd = coef(cava.year)["kd"], Td = mu, x = x)
+  y_mean <- 1 / (1 + exp(LC_mean))
+
+  # CI
+  LC_low <- logit.pf(kd = coef(cava.year)["kd"], Td = mu_low, x = x)
+  y_low <- 1 / (1 + exp(LC_low))
+
+  LC_high <- logit.pf(kd = coef(cava.year)["kd"], Td = mu_high, x = x)
+  y_high <- 1 / (1 + exp(LC_high))
+
+  calendar_doy <- ((x + 243 - 1) %% 365) + 1
+
+  temp_df <- data.frame(
+    x = x,
+    y = y_mean,
+    y_low = y_low,
+    y_high = y_high,
+    doy = calendar_doy,
+    date = as.Date(calendar_doy - 1, origin = "2018-01-01"),
+    year = as.factor(year)
+  )
+
+  results_df <- bind_rows(results_df, temp_df)
+}
+head(results_df)
+
+
+day_date_lookup <- data.frame(
+  day = as.numeric(difftime(seq(from=as.Date("2018-09-01"), to=as.Date("2019-08-31"), by="month"),
+                            as.Date("2018-09-01"), units = "days")),
+  date = seq(from=as.Date("2018-09-01"), to=as.Date("2019-08-31"), by="month")
+)
+year_labels <- c(
+  "1" = "2017–2018",
+  "2" = "2018–2019",
+  "3" = "2019–2020",
+  "4" = "2020–2021",
+  "5" = "2021–2022",
+  "6" = "2022–2023",
+  "7" = "2023–2024"
+)
+
+windows()
+ggplot(results_df, aes(x = x)) +
+  geom_ribbon(
+    aes(ymin = y_low, ymax = y_high, fill = year),
+    alpha = 0.2,
+    color = NA
+  ) +
+  geom_line(
+    aes(y = y, color = year),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = all_before_threshold %>% 
+      filter(pheno_year %in% unique(results_df$year)),
+    aes(x = day, y = y_norm, color = as.factor(pheno_year)),
+    size = 1.5,
+    alpha = 0.7
+  ) +
+  scale_x_continuous(
+    breaks = day_date_lookup$day,
+    labels = format(day_date_lookup$date, "%b %d")
+  ) +
+  scale_color_discrete(labels = year_labels) +
+  scale_fill_discrete(labels = year_labels) +
+  labs(
+    title = "Cavallinesia planatifolia - Year Effects Model",
+    y = "Predicted Leaf Coverage",
+    x = "Date",
+    color = "Year",
+    fill = "Year"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave("plots/cava_year_effects_model.png", width = 10, height = 6)
+
+
+
+
+
+cavayeartable <- dctable(cava.year)
+windows()
+plot(cavayeartable,1:6)
+windows()
+plot(cavayeartable,6:9)
+
+windows()
+plot(cavayeartable,1:4, type="log.var")
+windows()
+plot(cavayeartable,5:9, type="log.var")
+
+
