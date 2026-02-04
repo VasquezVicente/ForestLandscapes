@@ -13,7 +13,7 @@ for idx, d in enumerate(dirs, 1):
 
 choice = int(input("Enter the number of the directory to process: ")) - 1
 selected_dir = dirs[choice]
-project_path = r"D:\Yasuni\ECUADOR_yasuni_2019_10_06_P4P\ECUADOR_yasuni_2019_10_06_P4P.psx"
+project_path = r"D:\Yasuni\ECUADOR_yasuni_2019_11_27_P4P\ECUADOR_yasuni_2019_11_27_P4P.psx"
 
 doc = Metashape.Document()
 doc.open(project_path)
